@@ -16,6 +16,7 @@ pub fn handle(state: &mut State, command: Command) -> Vec<OutboxEffect> {
         Command::MoveFocus(m) => interaction::handle_focus(state, m),
         Command::ToggleFollowTail(id) => interaction::handle_follow_tail(state, id),
         Command::ToggleBraveMode(id) => interaction::handle_toggle_brave(state, id),
+        Command::RenameTile { id, name } => interaction::handle_rename_tile(state, id, name),
         Command::OnPtyBytes { id, bytes } => pty::handle_bytes(state, id, bytes),
         Command::OnPtySpawned(id) => pty::handle_spawned(state, id),
         Command::OnPtySpawnFailed { spec, reason } => {

@@ -20,4 +20,5 @@ pub enum DomainEvent {
     BraveModeToggled(TileId),
     TerminalResized { width: u16, height: u16 },
     TileBufferResized { id: TileId, width: u16, height: u16 },
+    TileRenamed { id: TileId, name: String },
 }

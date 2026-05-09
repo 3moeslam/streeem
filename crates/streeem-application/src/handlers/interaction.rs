@@ -38,6 +38,10 @@ pub fn handle_toggle_brave(state: &mut State, id: TileId) -> Vec<OutboxEffect> {
     reduce(state, DomainEvent::BraveModeToggled(id))
 }
 
+pub fn handle_rename_tile(state: &mut State, id: TileId, name: String) -> Vec<OutboxEffect> {
+    reduce(state, DomainEvent::TileRenamed { id, name })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +112,14 @@ mod tests {
         assert!(s.grid.tiles[0].brave_mode);
         let _ = handle_toggle_brave(&mut s, id);
         assert!(!s.grid.tiles[0].brave_mode);
+    }
+
+    #[test]
+    fn rename_tile_updates_name() {
+        let mut s = fresh();
+        let _ = handle_add_tile(&mut s, CommandSpec::with_default_rows("a").unwrap());
+        let id = s.grid.tiles[0].id;
+        let _ = handle_rename_tile(&mut s, id, "my-tile".to_string());
+        assert_eq!(s.grid.tiles[0].name, Some("my-tile".to_string()));
     }
 }

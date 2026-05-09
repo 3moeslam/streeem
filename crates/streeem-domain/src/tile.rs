@@ -76,6 +76,10 @@ impl Tile {
     pub fn toggle_brave_mode(&mut self) {
         self.brave_mode = !self.brave_mode;
     }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = Some(name);
+    }
 }
 
 #[cfg(test)]
@@ -143,6 +147,16 @@ mod tests {
             ScrollbackCapacity::default(),
         );
         assert_eq!(tile.name, None);
+    }
+
+    #[test]
+    fn set_name_replaces_name() {
+        let mut tile = make_tile();
+        assert_eq!(tile.name, None);
+        tile.set_name("foo".to_string());
+        assert_eq!(tile.name, Some("foo".to_string()));
+        tile.set_name("bar".to_string());
+        assert_eq!(tile.name, Some("bar".to_string()));
     }
 
     #[test]

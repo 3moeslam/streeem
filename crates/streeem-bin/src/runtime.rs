@@ -149,6 +149,13 @@ pub async fn run(
                                     }
                                     command_mode_until = None;
                                 }
+                                'r' => {
+                                    debug_log::log("cmd-mode: rename tile");
+                                    if let Some(id) = app.snapshot().focused {
+                                        prompt.open_for_rename(id);
+                                    }
+                                    command_mode_until = None;
+                                }
                                 'b' => {
                                     debug_log::log("cmd-mode: toggle brave mode");
                                     if let Some(id) = app.snapshot().focused {
@@ -275,7 +282,7 @@ pub async fn run(
                     let mut frame: FrameDescription = build_with_prompt(
                         &app.snapshot(),
                         if prompt.active {
-                            Some(prompt.buffer.clone())
+                            Some(format!("{}> {}", prompt.label(), prompt.buffer))
                         } else {
                             None
                         },

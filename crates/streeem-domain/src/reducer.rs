@@ -134,6 +134,12 @@ pub fn reduce(state: &mut State, event: DomainEvent) -> Vec<OutboxEffect> {
                 });
             }
         }
+        DomainEvent::TileRenamed { id, name } => {
+            if let Some(tile) = state.grid.tiles.iter_mut().find(|t| t.id == id) {
+                tile.set_name(name);
+                state.dirty = true;
+            }
+        }
     }
     out.push(OutboxEffect::MarkFrameDirty);
     out
@@ -356,6 +362,29 @@ mod tests {
         let _ = reduce(&mut state, DomainEvent::BraveModeToggled(id));
         let tile = state.grid.tiles.iter().find(|t| t.id == id).unwrap();
         assert!(!tile.brave_mode);
+    }
+
+    #[test]
+    fn tile_renamed_updates_tile_name() {
+        let mut state = fresh_state();
+        let id = state.id_factory.next_id();
+        let _ = reduce(
+            &mut state,
+            DomainEvent::TileAdded {
+                id,
+                spec: spec("echo a"),
+            },
+        );
+        let _ = reduce(
+            &mut state,
+            DomainEvent::TileRenamed {
+                id,
+                name: "foo".to_string(),
+            },
+        );
+        let tile = state.grid.tiles.iter().find(|t| t.id == id).unwrap();
+        assert_eq!(tile.name, Some("foo".to_string()));
+        assert!(state.dirty);
     }
 
     #[test]

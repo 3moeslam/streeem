@@ -74,7 +74,7 @@ fn draw(area: Rect, f: &mut ratatui::Frame<'_>, desc: &FrameDescription) {
                     width: area.width,
                     height: 1,
                 };
-                let line = format!("prompt> {text}");
+                let line = text.clone();
                 f.render_widget(Paragraph::new(line), r);
             }
             // Status bar always rendered at the bottom row
