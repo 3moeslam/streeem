@@ -18,7 +18,9 @@ install-path = "CARGO_HOME"
 hosting = "github"
 # Whether to install an updater program
 install-updater = false
-# The Homebrew tap repository (separate GitHub repo) where the formula is published.
-tap = "3moeslam/homebrew-streeem"
-# The branch within the tap repo to push the formula to.
+# The Homebrew formula is published into the main streeem repo itself
+# (Formula/streeem.rb). This is intentionally non-conventional — the canonical
+# `brew tap` requires a separate homebrew-* repo. Users install via direct URL:
+#   brew install https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
+tap = "3moeslam/streeem"
 publish-jobs = ["homebrew"]

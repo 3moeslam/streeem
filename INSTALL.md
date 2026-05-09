@@ -4,13 +4,12 @@ Streeem is a Rust TUI that hosts multiple terminals in a staggered grid. It runs
 
 ---
 
-## 1. macOS — Homebrew (recommended once the tap is published)
+## 1. macOS — Homebrew direct-URL install
 
-> ⚠ This path requires the maintainer to have set up the [`3moeslam/homebrew-streeem`](https://github.com/3moeslam/homebrew-streeem) tap and pushed at least one tagged release. If `brew tap` fails with a 404, fall back to path 2 or 3.
+The formula lives in the [main streeem repo](https://github.com/3moeslam/streeem) at `Formula/streeem.rb` (auto-published by the release workflow). Install with:
 
 ```sh
-brew tap 3moeslam/streeem
-brew install streeem
+brew install https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
 ```
 
 After install:
@@ -19,18 +18,20 @@ After install:
 streeem --name shell "${SHELL:-bash} -i"
 ```
 
-To upgrade later:
+To upgrade later, reinstall from the same URL (no `brew upgrade` since this isn't a tap):
 
 ```sh
-brew upgrade streeem
+brew uninstall streeem
+brew install https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
 ```
 
 To uninstall:
 
 ```sh
 brew uninstall streeem
-brew untap 3moeslam/streeem
 ```
+
+> Note: this is intentionally a direct-URL install rather than a tap. The traditional `brew tap`/`brew upgrade` flow would require a separate `homebrew-streeem` repo (Homebrew convention). If you'd prefer the tap experience over the single-repo simplicity, switch back to that setup; see commit history for the previous config.
 
 ---
 
