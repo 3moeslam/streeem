@@ -24,3 +24,8 @@ install-updater = false
 #   brew install https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
 tap = "3moeslam/streeem"
 publish-jobs = ["homebrew"]
+# release.yml has a manual `ref: master` patch on the publish-homebrew-formula
+# checkout step (needed because actions/checkout would otherwise default to the
+# tag's detached-HEAD SHA when tap == source repo). Tell dist not to enforce
+# its self-check on the workflow file.
+allow-dirty = ["ci"]
