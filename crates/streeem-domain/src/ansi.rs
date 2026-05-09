@@ -97,6 +97,10 @@ impl AnsiInterpreter {
 }
 
 fn apply_sgr(style: &mut Style, params: &[u8]) {
+    if params.is_empty() {
+        *style = Style::RESET;
+        return;
+    }
     let s = std::str::from_utf8(params).unwrap_or("");
     let mut nums = s.split(';').filter_map(|p| p.parse::<u8>().ok());
     while let Some(n) = nums.next() {
@@ -197,6 +201,25 @@ mod tests {
         match &lines[0] {
             OutputLine::Text(spans) => assert!(spans[0].text.contains('\u{FFFD}')),
             _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn bare_csi_m_resets_style() {
+        let mut a = AnsiInterpreter::new();
+        // First set a style.
+        a.feed(b"\x1b[31m");
+        // Then bare ESC[m to reset.
+        a.feed(b"\x1b[m");
+        // Now feed text and a newline; the style should be default (no fg).
+        let lines = a.feed(b"x\n");
+        match &lines[0] {
+            OutputLine::Text(spans) => {
+                assert_eq!(spans.len(), 1);
+                assert_eq!(spans[0].text, "x");
+                assert!(spans[0].style.fg.is_none(), "style should be reset");
+            }
+            _ => panic!("expected Text"),
         }
     }
 }
