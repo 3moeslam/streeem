@@ -13,7 +13,7 @@ use streeem_domain::style::Style as DStyle;
 use streeem_domain::tile_color::TileColor;
 use streeem_presentation::view::{FrameDescription, TileWidget};
 
-use crate::terminal_guard::TerminalGuard;
+use streeem_infrastructure::terminal_guard::TerminalGuard;
 
 pub struct RatatuiRenderer {
     terminal: Terminal<CrosstermBackend<Stdout>>,

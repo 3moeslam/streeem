@@ -1,4 +1,5 @@
 mod cli;
+mod ratatui_renderer;
 mod runtime;
 
 use anyhow::Result;

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use crate::ratatui_renderer::RatatuiRenderer;
 use anyhow::Result;
 use streeem_application::application::Application;
 use streeem_application::command::Command;
@@ -17,7 +18,6 @@ use streeem_domain::tile_id::TileId;
 use streeem_infrastructure::crossterm_input_adapter::CrosstermInputAdapter;
 use streeem_infrastructure::crossterm_terminal_size::CrosstermTerminalSize;
 use streeem_infrastructure::portable_pty_spawner::PortablePtySpawner;
-use streeem_infrastructure::ratatui_renderer::RatatuiRenderer;
 use streeem_presentation::key_map::{AppIntent, KeyOutcome, map as map_key};
 use streeem_presentation::prompt::{PromptOutcome, PromptState};
 use streeem_presentation::view::{FrameDescription, build_with_prompt};
