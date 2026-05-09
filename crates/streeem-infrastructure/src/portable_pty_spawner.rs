@@ -35,6 +35,7 @@ impl PtySpawner for PortablePtySpawner {
         let mut cmd = CommandBuilder::new("sh");
         cmd.arg("-c");
         cmd.arg(&spec.command);
+        cmd.env("TERM", "xterm-256color");
 
         let mut child = pair.slave.spawn_command(cmd).map_err(|e| SpawnError {
             reason: e.to_string(),

@@ -2,6 +2,7 @@
 
 pub mod ports;
 
+pub mod cell_color;
 pub mod color_palette;
 pub mod column_count;
 pub mod command_spec;

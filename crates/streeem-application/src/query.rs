@@ -91,7 +91,7 @@ pub fn snapshot(state: &State) -> RenderSnapshot {
                 run_status: t.run_status,
                 follow_tail: t.follow_tail,
                 scroll_offset_from_bottom: t.scroll_offset_from_bottom,
-                cells: t.buffer.visible_rows().to_vec(),
+                cells: t.buffer.visible_rows(),
                 cursor: t.buffer.cursor(),
             }
         })

@@ -131,7 +131,6 @@ mod tests {
     use super::*;
     use streeem_domain::command_spec::CommandSpec;
     use streeem_domain::scrollback_capacity::ScrollbackCapacity;
-    use streeem_domain::style::Style;
     use streeem_domain::tile::Tile;
     use streeem_domain::tile_id::TileId;
 
@@ -140,7 +139,7 @@ mod tests {
             .chars()
             .map(|c| Cell {
                 ch: c,
-                style: Style::default(),
+                ..Cell::default()
             })
             .collect();
         while row.len() < width {

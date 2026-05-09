@@ -7,8 +7,9 @@ use ratatui::style::{Color, Modifier, Style as RStyle};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
+use streeem_domain::cell_color::CellColor;
 use streeem_domain::ports::renderer::{RenderError, Renderer};
-use streeem_domain::style::Style as DStyle;
+use streeem_domain::terminal_buffer::Cell;
 use streeem_domain::tile_color::TileColor;
 use streeem_presentation::view::{FrameDescription, TileWidget};
 
@@ -122,7 +123,7 @@ fn draw_tile(area: Rect, f: &mut ratatui::Frame<'_>, t: &TileWidget, alert_heigh
         .map(|row| {
             let spans: Vec<Span<'_>> = row
                 .iter()
-                .map(|cell| Span::styled(cell.ch.to_string(), translate_style(&cell.style)))
+                .map(|cell| Span::styled(cell.ch.to_string(), translate_cell_style(cell)))
                 .collect();
             Line::from(spans)
         })
@@ -146,21 +147,31 @@ fn draw_tile(area: Rect, f: &mut ratatui::Frame<'_>, t: &TileWidget, alert_heigh
     }
 }
 
-fn translate_style(s: &DStyle) -> RStyle {
-    let mut style = RStyle::default();
-    if let Some(fg) = s.fg {
-        style = style.fg(translate_color(fg));
-    }
-    if let Some(bg) = s.bg {
-        style = style.bg(translate_color(bg));
-    }
-    if s.bold {
+fn translate_cell_style(cell: &Cell) -> RStyle {
+    let mut style = RStyle::default()
+        .fg(translate_cell_color(cell.fg))
+        .bg(translate_cell_color(cell.bg));
+    if cell.bold {
         style = style.add_modifier(Modifier::BOLD);
     }
-    if s.underline {
+    if cell.italic {
+        style = style.add_modifier(Modifier::ITALIC);
+    }
+    if cell.underline {
         style = style.add_modifier(Modifier::UNDERLINED);
     }
+    if cell.inverse {
+        style = style.add_modifier(Modifier::REVERSED);
+    }
     style
+}
+
+fn translate_cell_color(c: CellColor) -> Color {
+    match c {
+        CellColor::Default => Color::Reset,
+        CellColor::Indexed(i) => Color::Indexed(i),
+        CellColor::Rgb(r, g, b) => Color::Rgb(r, g, b),
+    }
 }
 
 fn translate_color(c: TileColor) -> Color {
