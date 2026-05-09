@@ -1,5 +1,9 @@
 #![cfg_attr(test, allow(clippy::panic))]
-#![allow(clippy::cast_possible_truncation, clippy::cast_lossless, clippy::while_let_on_iterator)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_lossless,
+    clippy::while_let_on_iterator
+)]
 //! Streaming ANSI byte interpreter. Emits OutputLine::Text per newline,
 //! applies SGR colour codes, drops cursor / clear / scroll-region escapes.
 
