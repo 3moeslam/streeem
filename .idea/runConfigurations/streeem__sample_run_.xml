@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="streeem (sample run)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run -p streeem-bin -- --name alpha 'scripts/demo-tile.sh A' --name shell 'bash --noprofile --norc -i'" />
+    <option name="command" value="run -p streeem -- --name alpha 'scripts/demo-tile.sh A' --name shell 'bash --noprofile --norc -i'" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

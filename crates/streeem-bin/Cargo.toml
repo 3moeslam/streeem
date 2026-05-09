@@ -1,13 +1,21 @@
 [package]
-name = "streeem-bin"
+name = "streeem"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+authors.workspace = true
 
 [[bin]]
 name = "streeem"
 path = "src/main.rs"
+
+# Opt this crate into `dist` distribution despite the workspace publish = false.
+[package.metadata.dist]
+dist = true
 
 [lints]
 workspace = true

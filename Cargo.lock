@@ -680,14 +680,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
-name = "streeem-application"
-version = "0.2.0"
-dependencies = [
- "streeem-domain",
-]
-
-[[package]]
-name = "streeem-bin"
+name = "streeem"
 version = "0.2.0"
 dependencies = [
  "anyhow",
@@ -698,6 +691,13 @@ dependencies = [
  "streeem-infrastructure",
  "streeem-presentation",
  "tokio",
+]
+
+[[package]]
+name = "streeem-application"
+version = "0.2.0"
+dependencies = [
+ "streeem-domain",
 ]
 
 [[package]]
