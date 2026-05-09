@@ -5,6 +5,7 @@ use crate::command::Command;
 
 pub mod interaction;
 pub mod lifecycle;
+pub mod pty;
 
 pub fn handle(state: &mut State, command: Command) -> Vec<OutboxEffect> {
     match command {
@@ -14,6 +15,11 @@ pub fn handle(state: &mut State, command: Command) -> Vec<OutboxEffect> {
         Command::ScrollTile { id, delta } => interaction::handle_scroll(state, id, delta),
         Command::MoveFocus(m) => interaction::handle_focus(state, m),
         Command::ToggleFollowTail(id) => interaction::handle_follow_tail(state, id),
-        _ => Vec::new(),
+        Command::OnPtyOutput { id, lines } => pty::handle_output(state, id, lines),
+        Command::OnPtySpawned(id) => pty::handle_spawned(state, id),
+        Command::OnPtyExited { id, status } => pty::handle_exited(state, id, status),
+        Command::OnTerminalResized { width, height } => {
+            pty::handle_terminal_resized(state, width, height)
+        }
     }
 }
