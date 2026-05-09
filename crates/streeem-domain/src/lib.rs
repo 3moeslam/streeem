@@ -19,6 +19,7 @@ pub mod scrollback_capacity;
 pub mod state;
 pub mod style;
 pub mod styled_span;
+pub mod terminal_buffer;
 pub mod tile;
 pub mod tile_color;
 pub mod tile_id;

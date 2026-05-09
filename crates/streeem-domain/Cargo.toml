@@ -10,3 +10,6 @@ workspace = true
 
 [features]
 test-support = []
+
+[dependencies]
+vte = "0.15.0"
