@@ -27,7 +27,7 @@ pub struct Tile {
     pub run_status: RunStatus,
     pub follow_tail: bool,
     pub scroll_offset_from_bottom: u32,
-    pub display_name: String,
+    pub name: Option<String>,
 }
 
 impl Tile {
@@ -38,10 +38,7 @@ impl Tile {
         capacity: ScrollbackCapacity,
     ) -> Self {
         let rows_hint = spec.rows_hint;
-        let display_name = spec
-            .name
-            .clone()
-            .unwrap_or_else(|| format!("{}", id.raw() + 1));
+        let name = spec.name.clone();
         Self {
             id,
             color,
@@ -51,7 +48,7 @@ impl Tile {
             run_status: RunStatus::Spawning,
             follow_tail: true,
             scroll_offset_from_bottom: 0,
-            display_name,
+            name,
         }
     }
 
@@ -128,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn display_name_falls_back_to_numeric_when_unset() {
+    fn name_is_none_when_not_provided() {
         let spec = CommandSpec::with_default_rows("echo hi").unwrap();
         let tile = Tile::new(
             TileId::default_from(0),
@@ -136,13 +133,13 @@ mod tests {
             spec,
             ScrollbackCapacity::default(),
         );
-        assert_eq!(tile.display_name, "1");
+        assert_eq!(tile.name, None);
     }
 
     #[test]
-    fn display_name_uses_provided_name_when_set() {
+    fn name_field_holds_provided_name() {
         let spec =
-            CommandSpec::new_with_name("echo hi", Some("alpha".to_string()), RowsHint::default())
+            CommandSpec::new_with_name("echo hi", Some("foo".to_string()), RowsHint::default())
                 .unwrap();
         let tile = Tile::new(
             TileId::default_from(0),
@@ -150,6 +147,6 @@ mod tests {
             spec,
             ScrollbackCapacity::default(),
         );
-        assert_eq!(tile.display_name, "alpha");
+        assert_eq!(tile.name, Some("foo".to_string()));
     }
 }

@@ -91,15 +91,27 @@ fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
         (_, _, RunStatus::Spawning) => " [spawning]".to_string(),
         _ => String::new(),
     };
-    let title = format!(
-        "[{n}] {name}: {cmd}  (rows {rows}, {lines} lines){badges}",
-        n = tile.focus_index,
-        name = tile.display_name,
-        cmd = tile.title_command,
-        rows = placement.height,
-        lines = line_count,
-        badges = status_badges,
-    );
+    let is_auto_name = tile.display_name == format!("{}", tile.focus_index);
+    let title = if is_auto_name {
+        format!(
+            "[{n}] {cmd}  (rows {rows}, {lines} lines){badges}",
+            n = tile.focus_index,
+            cmd = tile.title_command,
+            rows = placement.height,
+            lines = line_count,
+            badges = status_badges,
+        )
+    } else {
+        format!(
+            "[{n}] {name}: {cmd}  (rows {rows}, {lines} lines){badges}",
+            n = tile.focus_index,
+            name = tile.display_name,
+            cmd = tile.title_command,
+            rows = placement.height,
+            lines = line_count,
+            badges = status_badges,
+        )
+    };
     TileWidget {
         placement,
         border_color: tile.color,
@@ -174,7 +186,8 @@ mod tests {
                 assert_eq!(tiles[0].border_color, TileColor::Red);
                 assert!(tiles[0].title.contains("echo a"));
                 assert!(tiles[0].title.starts_with("[1]"));
-                assert!(tiles[0].title.contains("1: echo a"));
+                // display_name="1" matches focus_index=1, so name segment is omitted
+                assert!(!tiles[0].title.contains("1: echo a"));
                 assert!(alerts.is_empty());
                 assert!(tiles[0].focused);
             }
@@ -219,6 +232,61 @@ mod tests {
         let frame = build_with_prompt(&snap, Some("echo".to_string()));
         if let FrameDescription::Tiles { prompt, .. } = frame {
             assert_eq!(prompt, Some("echo".to_string()));
+        }
+    }
+
+    fn snap_with_named_tile(display_name: &str, focus_index: u8) -> RenderSnapshot {
+        let id = TileId::default_from(0);
+        let placement = Placement {
+            tile_id: id,
+            column: 0,
+            row_offset: 0,
+            height: 10,
+            width: 80,
+            is_clipped: false,
+        };
+        let tile_snap = TileSnapshot {
+            id,
+            focus_index,
+            color: TileColor::Red,
+            title_command: "echo a".to_string(),
+            display_name: display_name.to_string(),
+            run_status: RunStatus::Running,
+            follow_tail: true,
+            scroll_offset_from_bottom: 0,
+            lines: Vec::new(),
+        };
+        RenderSnapshot {
+            terminal_size: (80, 30),
+            placements: vec![placement],
+            tiles: vec![tile_snap],
+            focused: Some(id),
+            alerts: Vec::new(),
+            too_small: false,
+        }
+    }
+
+    #[test]
+    fn unnamed_tile_title_omits_name_segment() {
+        // display_name="1" matches focus_index=1: auto-generated, so name segment is hidden.
+        let snap = snap_with_named_tile("1", 1);
+        let frame = build(&snap);
+        if let FrameDescription::Tiles { tiles, .. } = frame {
+            assert!(tiles[0].title.starts_with("[1] "));
+            assert!(
+                !tiles[0].title.contains("1: "),
+                "auto name should not appear as 'N: '"
+            );
+        }
+    }
+
+    #[test]
+    fn named_tile_title_includes_name_segment() {
+        // display_name="alpha" does not match focus_index=1: user-provided name shown.
+        let snap = snap_with_named_tile("alpha", 1);
+        let frame = build(&snap);
+        if let FrameDescription::Tiles { tiles, .. } = frame {
+            assert!(tiles[0].title.contains("[1] alpha: "));
         }
     }
 
