@@ -4,7 +4,7 @@
 
 use streeem_application::command::{Command, ScrollDelta};
 use streeem_application::query::RenderSnapshot;
-use streeem_domain::grid::FocusMove;
+use streeem_domain::grid::{FocusMove, SpatialDirection};
 use streeem_domain::ports::input_source::{KeyCode, KeyEvent};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,6 +78,18 @@ pub fn map(key: KeyEvent, snap: &RenderSnapshot) -> KeyOutcome {
                 })
             })
             .unwrap_or(KeyOutcome::Ignored),
+        (Left, false) => KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
+            SpatialDirection::Left,
+        ))),
+        (Right, false) => KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
+            SpatialDirection::Right,
+        ))),
+        (Up, false) => {
+            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(SpatialDirection::Up)))
+        }
+        (Down, false) => KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
+            SpatialDirection::Down,
+        ))),
         _ => KeyOutcome::Ignored,
     }
 }
@@ -170,6 +182,48 @@ mod tests {
         assert_eq!(
             map(KeyEvent::plain(KeyCode::Esc), &snap(None)),
             KeyOutcome::Ignored
+        );
+    }
+
+    #[test]
+    fn left_arrow_moves_focus_left() {
+        let r = map(KeyEvent::plain(KeyCode::Left), &snap(None));
+        assert_eq!(
+            r,
+            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
+                SpatialDirection::Left
+            )))
+        );
+    }
+
+    #[test]
+    fn right_arrow_moves_focus_right() {
+        let r = map(KeyEvent::plain(KeyCode::Right), &snap(None));
+        assert_eq!(
+            r,
+            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
+                SpatialDirection::Right
+            )))
+        );
+    }
+
+    #[test]
+    fn up_arrow_moves_focus_up() {
+        let r = map(KeyEvent::plain(KeyCode::Up), &snap(None));
+        assert_eq!(
+            r,
+            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(SpatialDirection::Up)))
+        );
+    }
+
+    #[test]
+    fn down_arrow_moves_focus_down() {
+        let r = map(KeyEvent::plain(KeyCode::Down), &snap(None));
+        assert_eq!(
+            r,
+            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
+                SpatialDirection::Down
+            )))
         );
     }
 }

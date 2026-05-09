@@ -1,5 +1,6 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 #![allow(clippy::should_implement_trait)]
+#![allow(clippy::cast_lossless, clippy::cast_possible_wrap)]
 //! Collection of tiles plus focus and viewport state.
 
 use crate::column_count::ColumnCount;
@@ -20,6 +21,15 @@ pub enum FocusMove {
     CycleForward,
     CycleBackward,
     Index(u8),
+    Spatial(SpatialDirection),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpatialDirection {
+    Left,
+    Right,
+    Up,
+    Down,
 }
 
 impl Grid {
@@ -72,8 +82,27 @@ impl Grid {
                 let n = n.saturating_sub(1) as usize;
                 n.min(self.tiles.len() - 1)
             }
+            FocusMove::Spatial(_) => return,
         };
         self.focused = Some(self.tiles[new_index].id);
+    }
+
+    pub fn move_focus_with_placements(
+        &mut self,
+        m: FocusMove,
+        placements: &[crate::layout_packer::Placement],
+    ) {
+        if let FocusMove::Spatial(dir) = m {
+            let next = self
+                .focused
+                .filter(|_| !self.tiles.is_empty())
+                .and_then(|current| nearest_in_direction(current, dir, placements));
+            if let Some(id) = next {
+                self.focused = Some(id);
+            }
+            return;
+        }
+        self.move_focus(m);
     }
 
     pub fn focused_tile(&self) -> Option<&Tile> {
@@ -85,6 +114,29 @@ impl Grid {
         let id = self.focused?;
         self.tiles.iter_mut().find(|t| t.id == id)
     }
+}
+
+fn nearest_in_direction(
+    current: TileId,
+    dir: SpatialDirection,
+    placements: &[crate::layout_packer::Placement],
+) -> Option<TileId> {
+    let here = placements.iter().find(|p| p.tile_id == current)?;
+    placements
+        .iter()
+        .filter(|p| p.tile_id != current)
+        .filter(|p| match dir {
+            SpatialDirection::Left => p.column < here.column,
+            SpatialDirection::Right => p.column > here.column,
+            SpatialDirection::Up => p.row_offset < here.row_offset && p.column == here.column,
+            SpatialDirection::Down => p.row_offset > here.row_offset && p.column == here.column,
+        })
+        .min_by_key(|p| {
+            let dx = (p.column as i32 - here.column as i32).abs();
+            let dy = (p.row_offset as i32 - here.row_offset as i32).abs();
+            dx + dy
+        })
+        .map(|p| p.tile_id)
 }
 
 #[cfg(test)]
@@ -156,5 +208,55 @@ mod tests {
         g.add(make_tile(1, TileColor::Green));
         g.move_focus(FocusMove::Index(9));
         assert_eq!(g.focused, Some(TileId::default_from(1)));
+    }
+
+    fn make_placement(
+        tile_id: u32,
+        column: u16,
+        row_offset: u16,
+    ) -> crate::layout_packer::Placement {
+        crate::layout_packer::Placement {
+            tile_id: TileId::default_from(tile_id),
+            column,
+            row_offset,
+            height: 10,
+            width: 40,
+            is_clipped: false,
+        }
+    }
+
+    #[test]
+    fn nearest_in_direction_left_returns_left_neighbor() {
+        let placements = vec![
+            make_placement(0, 0, 0),
+            make_placement(1, 1, 0),
+            make_placement(2, 2, 0),
+        ];
+        let result =
+            nearest_in_direction(TileId::default_from(1), SpatialDirection::Left, &placements);
+        assert_eq!(result, Some(TileId::default_from(0)));
+    }
+
+    #[test]
+    fn nearest_in_direction_right_returns_right_neighbor() {
+        let placements = vec![
+            make_placement(0, 0, 0),
+            make_placement(1, 1, 0),
+            make_placement(2, 2, 0),
+        ];
+        let result = nearest_in_direction(
+            TileId::default_from(1),
+            SpatialDirection::Right,
+            &placements,
+        );
+        assert_eq!(result, Some(TileId::default_from(2)));
+    }
+
+    #[test]
+    fn nearest_in_direction_returns_none_when_no_candidate() {
+        let placements = vec![make_placement(0, 0, 0)];
+        let result =
+            nearest_in_direction(TileId::default_from(0), SpatialDirection::Left, &placements);
+        assert_eq!(result, None);
     }
 }

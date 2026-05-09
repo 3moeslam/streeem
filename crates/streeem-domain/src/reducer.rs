@@ -70,7 +70,25 @@ pub fn reduce(state: &mut State, event: DomainEvent) -> Vec<OutboxEffect> {
             }
         }
         DomainEvent::FocusMoved(m) => {
-            state.grid.move_focus(m);
+            use crate::grid::FocusMove;
+            use crate::layout_packer::{LayoutInput, pack};
+            if matches!(m, FocusMove::Spatial(_)) {
+                let tiles_for_packing: Vec<_> = state
+                    .grid
+                    .tiles
+                    .iter()
+                    .map(|t| (t.id, t.rows_hint))
+                    .collect();
+                let placements = pack(LayoutInput {
+                    tiles: &tiles_for_packing,
+                    columns: state.grid.columns,
+                    terminal_width: state.grid.terminal_width,
+                    terminal_height: state.grid.terminal_height,
+                });
+                state.grid.move_focus_with_placements(m, &placements);
+            } else {
+                state.grid.move_focus(m);
+            }
             state.dirty = true;
         }
         DomainEvent::TileScrolled { id, delta_lines } => {
