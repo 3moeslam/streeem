@@ -1,5 +1,13 @@
 mod cli;
+mod runtime;
 
-fn main() {
-    println!("streeem (placeholder; replaced in Task 30)");
+use anyhow::Result;
+use clap::Parser;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = cli::Cli::parse();
+    let columns = cli.columns;
+    let specs = cli.into_specs()?;
+    runtime::run(specs, columns).await
 }

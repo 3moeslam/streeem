@@ -23,7 +23,6 @@ pub struct Cli {
 }
 
 impl Cli {
-    #[allow(dead_code)]
     pub fn into_specs(self) -> Result<Vec<CommandSpec>, CliError> {
         let default_rows = RowsHint::default();
         let mut rows_iter = self.rows.into_iter();
@@ -39,7 +38,6 @@ impl Cli {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub enum CliError {
     BadRows(u16),
