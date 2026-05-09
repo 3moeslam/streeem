@@ -1,6 +1,25 @@
-[package]
-name = "streeem"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "2"
+members = [
+    "crates/streeem-domain",
+    "crates/streeem-application",
+    "crates/streeem-infrastructure",
+    "crates/streeem-presentation",
+    "crates/streeem-bin",
+]
 
-[dependencies]
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"

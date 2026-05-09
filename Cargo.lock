@@ -3,5 +3,38 @@
 version = 4
 
 [[package]]
-name = "streeem"
+name = "streeem-application"
 version = "0.1.0"
+dependencies = [
+ "streeem-domain",
+]
+
+[[package]]
+name = "streeem-bin"
+version = "0.1.0"
+dependencies = [
+ "streeem-application",
+ "streeem-domain",
+ "streeem-infrastructure",
+ "streeem-presentation",
+]
+
+[[package]]
+name = "streeem-domain"
+version = "0.1.0"
+
+[[package]]
+name = "streeem-infrastructure"
+version = "0.1.0"
+dependencies = [
+ "streeem-application",
+ "streeem-domain",
+]
+
+[[package]]
+name = "streeem-presentation"
+version = "0.1.0"
+dependencies = [
+ "streeem-application",
+ "streeem-domain",
+]
