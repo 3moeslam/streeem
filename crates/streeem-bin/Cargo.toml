@@ -17,3 +17,6 @@ streeem-domain = { path = "../streeem-domain" }
 streeem-application = { path = "../streeem-application" }
 streeem-infrastructure = { path = "../streeem-infrastructure" }
 streeem-presentation = { path = "../streeem-presentation" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+anyhow = "1"
