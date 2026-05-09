@@ -20,3 +20,8 @@ streeem-presentation = { path = "../streeem-presentation" }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
 anyhow = "1"
+
+[dev-dependencies]
+streeem-domain = { path = "../streeem-domain", features = ["test-support"] }
+streeem-application = { path = "../streeem-application" }
+streeem-presentation = { path = "../streeem-presentation" }
