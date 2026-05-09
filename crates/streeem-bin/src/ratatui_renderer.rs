@@ -51,6 +51,7 @@ fn draw(area: Rect, f: &mut ratatui::Frame<'_>, desc: &FrameDescription) {
             alerts,
             tiles,
             prompt,
+            status_bar,
         } => {
             let alert_height = if alerts.is_empty() { 0 } else { 1 };
             if alert_height > 0 {
@@ -69,12 +70,22 @@ fn draw(area: Rect, f: &mut ratatui::Frame<'_>, desc: &FrameDescription) {
             if let Some(text) = prompt {
                 let r = Rect {
                     x: area.x,
-                    y: area.y + area.height.saturating_sub(1),
+                    y: area.y + area.height.saturating_sub(2),
                     width: area.width,
                     height: 1,
                 };
                 let line = format!("prompt> {text}");
                 f.render_widget(Paragraph::new(line), r);
+            }
+            // Status bar always rendered at the bottom row
+            {
+                let r = Rect {
+                    x: area.x,
+                    y: area.y + area.height.saturating_sub(1),
+                    width: area.width,
+                    height: 1,
+                };
+                f.render_widget(Paragraph::new(status_bar.clone()), r);
             }
         }
     }

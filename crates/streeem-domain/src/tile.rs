@@ -27,6 +27,7 @@ pub struct Tile {
     pub run_status: RunStatus,
     pub follow_tail: bool,
     pub scroll_offset_from_bottom: u32,
+    pub display_name: String,
 }
 
 impl Tile {
@@ -37,6 +38,10 @@ impl Tile {
         capacity: ScrollbackCapacity,
     ) -> Self {
         let rows_hint = spec.rows_hint;
+        let display_name = spec
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("{}", id.raw() + 1));
         Self {
             id,
             color,
@@ -46,6 +51,7 @@ impl Tile {
             run_status: RunStatus::Spawning,
             follow_tail: true,
             scroll_offset_from_bottom: 0,
+            display_name,
         }
     }
 
@@ -119,5 +125,31 @@ mod tests {
         let mut t = make_tile();
         t.resize(-100);
         assert_eq!(t.rows_hint, RowsHint::new(1).unwrap());
+    }
+
+    #[test]
+    fn display_name_falls_back_to_numeric_when_unset() {
+        let spec = CommandSpec::with_default_rows("echo hi").unwrap();
+        let tile = Tile::new(
+            TileId::default_from(0),
+            TileColor::Red,
+            spec,
+            ScrollbackCapacity::default(),
+        );
+        assert_eq!(tile.display_name, "1");
+    }
+
+    #[test]
+    fn display_name_uses_provided_name_when_set() {
+        let spec =
+            CommandSpec::new_with_name("echo hi", Some("alpha".to_string()), RowsHint::default())
+                .unwrap();
+        let tile = Tile::new(
+            TileId::default_from(0),
+            TileColor::Red,
+            spec,
+            ScrollbackCapacity::default(),
+        );
+        assert_eq!(tile.display_name, "alpha");
     }
 }

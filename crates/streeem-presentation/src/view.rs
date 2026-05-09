@@ -8,12 +8,15 @@ use streeem_domain::output_line::OutputLine;
 use streeem_domain::tile::RunStatus;
 use streeem_domain::tile_color::TileColor;
 
+use crate::key_map;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FrameDescription {
     Tiles {
         alerts: Vec<String>,
         tiles: Vec<TileWidget>,
         prompt: Option<String>,
+        status_bar: String,
     },
     TooSmallBanner {
         width: u16,
@@ -55,6 +58,7 @@ pub fn build(snap: &RenderSnapshot) -> FrameDescription {
         alerts,
         tiles,
         prompt: None,
+        status_bar: key_map::STATUS_BAR_TEXT.to_string(),
     }
 }
 
@@ -88,8 +92,9 @@ fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
         _ => String::new(),
     };
     let title = format!(
-        "[{n}] {cmd}  (rows {rows}, {lines} lines){badges}",
+        "[{n}] {name}: {cmd}  (rows {rows}, {lines} lines){badges}",
         n = tile.focus_index,
+        name = tile.display_name,
         cmd = tile.title_command,
         rows = placement.height,
         lines = line_count,
@@ -129,6 +134,7 @@ mod tests {
             focus_index: 1,
             color: TileColor::Red,
             title_command: "echo a".to_string(),
+            display_name: "1".to_string(),
             run_status: RunStatus::Running,
             follow_tail: true,
             scroll_offset_from_bottom: 0,
@@ -162,11 +168,13 @@ mod tests {
                 tiles,
                 alerts,
                 prompt: _,
+                status_bar: _,
             } => {
                 assert_eq!(tiles.len(), 1);
                 assert_eq!(tiles[0].border_color, TileColor::Red);
                 assert!(tiles[0].title.contains("echo a"));
                 assert!(tiles[0].title.starts_with("[1]"));
+                assert!(tiles[0].title.contains("1: echo a"));
                 assert!(alerts.is_empty());
                 assert!(tiles[0].focused);
             }

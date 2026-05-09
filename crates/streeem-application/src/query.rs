@@ -16,6 +16,7 @@ pub struct TileSnapshot {
     pub focus_index: u8,
     pub color: TileColor,
     pub title_command: String,
+    pub display_name: String,
     pub run_status: RunStatus,
     pub follow_tail: bool,
     pub scroll_offset_from_bottom: u32,
@@ -49,6 +50,7 @@ pub fn snapshot(state: &State) -> RenderSnapshot {
         .iter()
         .map(|t| (t.id, t.rows_hint))
         .collect();
+    let usable_height = state.grid.terminal_height.saturating_sub(1);
     let placements = if too_small || tiles_for_packing.is_empty() {
         Vec::new()
     } else {
@@ -56,7 +58,7 @@ pub fn snapshot(state: &State) -> RenderSnapshot {
             tiles: &tiles_for_packing,
             columns: state.grid.columns,
             terminal_width: state.grid.terminal_width,
-            terminal_height: state.grid.terminal_height,
+            terminal_height: usable_height,
         })
     };
     let tiles = state
@@ -69,6 +71,7 @@ pub fn snapshot(state: &State) -> RenderSnapshot {
             focus_index: (i + 1).min(255) as u8,
             color: t.color,
             title_command: t.spec.command.clone(),
+            display_name: t.display_name.clone(),
             run_status: t.run_status,
             follow_tail: t.follow_tail,
             scroll_offset_from_bottom: t.scroll_offset_from_bottom,

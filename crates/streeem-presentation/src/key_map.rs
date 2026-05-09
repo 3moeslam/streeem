@@ -2,6 +2,8 @@
 
 #![allow(clippy::cast_possible_truncation)]
 
+pub const STATUS_BAR_TEXT: &str = "a:add  d:drop  +/-:resize  Tab:cycle  1-9:focus  \u{2190}\u{2192}\u{2191}\u{2193}:move  f:follow-tail  PgUp/PgDn:scroll  q:quit";
+
 use streeem_application::command::{Command, ScrollDelta};
 use streeem_application::query::RenderSnapshot;
 use streeem_domain::grid::{FocusMove, SpatialDirection};

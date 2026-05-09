@@ -18,6 +18,8 @@ pub struct Cli {
     pub min_tile_width: Option<u16>,
     #[arg(long)]
     pub rows: Vec<u16>,
+    #[arg(long = "name")]
+    pub names: Vec<String>,
     #[arg(value_name = "COMMAND", num_args = 1..)]
     pub commands: Vec<String>,
 }
@@ -26,13 +28,15 @@ impl Cli {
     pub fn into_specs(self) -> Result<Vec<CommandSpec>, CliError> {
         let default_rows = RowsHint::default();
         let mut rows_iter = self.rows.into_iter();
+        let mut names_iter = self.names.into_iter();
         let mut specs = Vec::with_capacity(self.commands.len());
         for cmd in self.commands {
             let rh = match rows_iter.next() {
                 Some(n) => RowsHint::new(n).map_err(|_| CliError::BadRows(n))?,
                 None => default_rows,
             };
-            specs.push(CommandSpec::new(cmd, rh).map_err(CliError::Spec)?);
+            let name = names_iter.next();
+            specs.push(CommandSpec::new_with_name(cmd, name, rh).map_err(CliError::Spec)?);
         }
         Ok(specs)
     }
@@ -86,5 +90,20 @@ mod tests {
     fn parses_columns_override() {
         let cli = parse(&["--columns", "4", "a"]);
         assert_eq!(cli.columns, Some(4));
+    }
+
+    #[test]
+    fn applies_names_in_order() {
+        let cli = parse(&["--name", "alpha", "--name", "beta", "a", "b"]);
+        let specs = cli.into_specs().unwrap();
+        assert_eq!(specs[0].name, Some("alpha".to_string()));
+        assert_eq!(specs[1].name, Some("beta".to_string()));
+    }
+
+    #[test]
+    fn name_defaults_to_none_when_not_provided() {
+        let cli = parse(&["echo hi"]);
+        let specs = cli.into_specs().unwrap();
+        assert_eq!(specs[0].name, None);
     }
 }
