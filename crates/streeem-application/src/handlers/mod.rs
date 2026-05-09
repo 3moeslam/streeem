@@ -17,6 +17,9 @@ pub fn handle(state: &mut State, command: Command) -> Vec<OutboxEffect> {
         Command::ToggleFollowTail(id) => interaction::handle_follow_tail(state, id),
         Command::OnPtyOutput { id, lines } => pty::handle_output(state, id, lines),
         Command::OnPtySpawned(id) => pty::handle_spawned(state, id),
+        Command::OnPtySpawnFailed { spec, reason } => {
+            lifecycle::handle_spawn_failed(state, spec, reason)
+        }
         Command::OnPtyExited { id, status } => pty::handle_exited(state, id, status),
         Command::OnTerminalResized { width, height } => {
             pty::handle_terminal_resized(state, width, height)

@@ -17,6 +17,33 @@ pub fn handle_drop_tile(state: &mut State, id: TileId) -> Vec<OutboxEffect> {
     reduce(state, DomainEvent::TileDropped(id))
 }
 
+pub fn handle_spawn_failed(
+    state: &mut State,
+    spec: CommandSpec,
+    reason: String,
+) -> Vec<OutboxEffect> {
+    reduce(state, DomainEvent::TileSpawnFailed { spec, reason })
+}
+
+#[cfg(test)]
+#[allow(non_snake_case)]
+mod spawn_failed_tests {
+    use super::*;
+    use streeem_domain::column_count::ColumnCount;
+
+    #[test]
+    fn spawn_failed_records_alert() {
+        let mut s = State::new(ColumnCount::new(2).unwrap(), 100, 30);
+        let _ = handle_spawn_failed(
+            &mut s,
+            CommandSpec::with_default_rows("nope").unwrap(),
+            "no such command".to_string(),
+        );
+        assert_eq!(s.alerts.len(), 1);
+        assert!(s.alerts[0].message.contains("nope"));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -24,6 +24,7 @@ pub enum Command {
     ToggleFollowTail(TileId),
     OnPtyOutput { id: TileId, lines: Vec<OutputLine> },
     OnPtySpawned(TileId),
+    OnPtySpawnFailed { spec: CommandSpec, reason: String },
     OnPtyExited { id: TileId, status: ExitStatus },
     OnTerminalResized { width: u16, height: u16 },
 }
