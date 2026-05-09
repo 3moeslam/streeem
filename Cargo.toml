@@ -10,12 +10,12 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.2.2"
+version = "0.2.3"
 license = "MIT OR Apache-2.0"
 publish = false
 repository = "https://github.com/3moeslam/streeem"
 homepage = "https://github.com/3moeslam/streeem"
-description = "A Rust TUI that hosts multiple terminals in a staggered grid (vt100-emulated tiles, per-tile interactive input)"
+description = "Rust TUI that hosts multiple interactive terminals in a staggered grid"
 authors = ["Eslam <eslam.abdelkader01@gmail.com>"]
 
 [workspace.lints.rust]

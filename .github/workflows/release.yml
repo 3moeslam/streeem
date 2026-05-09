@@ -294,6 +294,7 @@ jobs:
         with:
           persist-credentials: true
           repository: "3moeslam/streeem"
+          ref: master
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       # So we have access to the formula
       - name: Fetch homebrew formulae
