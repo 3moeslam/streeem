@@ -1,0 +1,140 @@
+use std::io::{Stdout, stdout};
+
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style as RStyle};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
+
+use streeem_domain::output_line::OutputLine;
+use streeem_domain::ports::renderer::{RenderError, Renderer};
+use streeem_domain::style::Style as DStyle;
+use streeem_domain::tile_color::TileColor;
+use streeem_presentation::view::{FrameDescription, TileWidget};
+
+use crate::terminal_guard::TerminalGuard;
+
+pub struct RatatuiRenderer {
+    terminal: Terminal<CrosstermBackend<Stdout>>,
+    _guard: TerminalGuard,
+}
+
+impl RatatuiRenderer {
+    pub fn enter() -> Result<Self, RenderError> {
+        let guard = TerminalGuard::enter().map_err(|e| RenderError(e.to_string()))?;
+        let backend = CrosstermBackend::new(stdout());
+        let terminal = Terminal::new(backend).map_err(|e| RenderError(e.to_string()))?;
+        Ok(Self {
+            terminal,
+            _guard: guard,
+        })
+    }
+}
+
+impl Renderer<FrameDescription> for RatatuiRenderer {
+    fn render(&mut self, frame: &FrameDescription) -> Result<(), RenderError> {
+        self.terminal
+            .draw(|f| draw(f.area(), f, frame))
+            .map_err(|e| RenderError(e.to_string()))?;
+        Ok(())
+    }
+}
+
+fn draw(area: Rect, f: &mut ratatui::Frame<'_>, desc: &FrameDescription) {
+    match desc {
+        FrameDescription::TooSmallBanner { message, .. } => {
+            let p = Paragraph::new(message.clone()).block(Block::default().borders(Borders::ALL));
+            f.render_widget(p, area);
+        }
+        FrameDescription::Tiles { alerts, tiles } => {
+            let alert_height = if alerts.is_empty() { 0 } else { 1 };
+            if alert_height > 0 {
+                let r = Rect {
+                    x: area.x,
+                    y: area.y,
+                    width: area.width,
+                    height: alert_height,
+                };
+                let text = alerts.join(" | ");
+                f.render_widget(Paragraph::new(text), r);
+            }
+            for t in tiles {
+                draw_tile(area, f, t, alert_height);
+            }
+        }
+    }
+}
+
+fn draw_tile(area: Rect, f: &mut ratatui::Frame<'_>, t: &TileWidget, alert_height: u16) {
+    let col_w = area.width / area.width.clamp(1, 255);
+    let _ = col_w;
+    let r = Rect {
+        x: area.x + t.placement.column * t.placement.width,
+        y: area.y + alert_height + t.placement.row_offset,
+        width: t.placement.width,
+        height: t.placement.height,
+    };
+    let border_style = RStyle::default().fg(translate_color(t.border_color));
+    let title_style = if t.focused {
+        border_style.add_modifier(Modifier::BOLD)
+    } else {
+        border_style
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(border_style)
+        .title(Span::styled(t.title.clone(), title_style));
+    let lines: Vec<Line<'_>> = t.body.iter().map(translate_line).collect();
+    let p = Paragraph::new(lines).block(block);
+    f.render_widget(p, r);
+}
+
+fn translate_line(line: &OutputLine) -> Line<'static> {
+    match line {
+        OutputLine::Text(spans) => Line::from(
+            spans
+                .iter()
+                .map(|s| Span::styled(s.text.clone(), translate_style(&s.style)))
+                .collect::<Vec<_>>(),
+        ),
+        OutputLine::LinesDropped(n) => Line::from(Span::styled(
+            format!("[dropped {n} lines]"),
+            RStyle::default().add_modifier(Modifier::DIM),
+        )),
+    }
+}
+
+fn translate_style(s: &DStyle) -> RStyle {
+    let mut style = RStyle::default();
+    if let Some(fg) = s.fg {
+        style = style.fg(translate_color(fg));
+    }
+    if let Some(bg) = s.bg {
+        style = style.bg(translate_color(bg));
+    }
+    if s.bold {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    if s.underline {
+        style = style.add_modifier(Modifier::UNDERLINED);
+    }
+    style
+}
+
+fn translate_color(c: TileColor) -> Color {
+    match c {
+        TileColor::Red => Color::Red,
+        TileColor::Green => Color::Green,
+        TileColor::Yellow => Color::Yellow,
+        TileColor::Blue => Color::Blue,
+        TileColor::Magenta => Color::Magenta,
+        TileColor::Cyan => Color::Cyan,
+        TileColor::LightRed => Color::LightRed,
+        TileColor::LightGreen => Color::LightGreen,
+        TileColor::LightYellow => Color::LightYellow,
+        TileColor::LightBlue => Color::LightBlue,
+        TileColor::LightMagenta => Color::LightMagenta,
+        TileColor::LightCyan => Color::LightCyan,
+    }
+}

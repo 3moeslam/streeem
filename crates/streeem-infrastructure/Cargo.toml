@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 streeem-domain = { path = "../streeem-domain" }
 streeem-application = { path = "../streeem-application" }
+streeem-presentation = { path = "../streeem-presentation" }
 crossterm = "0.28"
 ratatui = "0.29"
 portable-pty = "0.8"
