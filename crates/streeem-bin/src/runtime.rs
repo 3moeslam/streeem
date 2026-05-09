@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::time::Duration;
 
+use crate::debug_log;
 use crate::input_bytes::key_to_bytes;
 use crate::input_mode::Mode;
 use crate::ratatui_renderer::RatatuiRenderer;
@@ -70,12 +71,31 @@ pub async fn run(
                         Mode::Input => {
                             if key.code == streeem_domain::ports::input_source::KeyCode::Esc {
                                 mode = Mode::Command;
-                            } else if let Some(bytes) = key_to_bytes(key)
-                                && let Some(focused_id) = app.snapshot().focused
-                                && let Some(writer) = writers.get_mut(&focused_id)
-                            {
-                                let _ = writer.write_all(&bytes);
-                                let _ = writer.flush();
+                                debug_log::log("input: Esc -> exit input mode");
+                            } else if let Some(bytes) = key_to_bytes(key) {
+                                let focused = app.snapshot().focused;
+                                let has_writer = focused.is_some_and(|id| writers.contains_key(&id));
+                                debug_log::log(&format!(
+                                    "input: key={:?} bytes={:?} focused={:?} has_writer={}",
+                                    key.code, bytes, focused, has_writer
+                                ));
+                                if let Some(focused_id) = focused
+                                    && let Some(writer) = writers.get_mut(&focused_id)
+                                {
+                                    match writer.write_all(&bytes) {
+                                        Ok(()) => debug_log::log(&format!(
+                                            "input: wrote {} bytes to tile {:?}",
+                                            bytes.len(), focused_id
+                                        )),
+                                        Err(e) => debug_log::log(&format!(
+                                            "input: write FAILED for tile {:?}: {e}",
+                                            focused_id
+                                        )),
+                                    }
+                                    if let Err(e) = writer.flush() {
+                                        debug_log::log(&format!("input: flush failed: {e}"));
+                                    }
+                                }
                             }
                         }
                         Mode::Command => {
@@ -91,10 +111,17 @@ pub async fn run(
                                 }
                             } else {
                                 match map_key(key, &app.snapshot()) {
-                                    KeyOutcome::Intent(AppIntent::Quit) => break 'outer,
+                                    KeyOutcome::Intent(AppIntent::Quit) => {
+                                        debug_log::log("command: Quit");
+                                        break 'outer;
+                                    }
                                     KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
                                     KeyOutcome::Intent(AppIntent::EnterInputMode) => {
                                         mode = Mode::Input;
+                                        debug_log::log(&format!(
+                                            "command: 'i' -> input mode (focused={:?})",
+                                            app.snapshot().focused
+                                        ));
                                     }
                                     KeyOutcome::Command(c) => {
                                         let outbox = app.dispatch(c);
@@ -156,6 +183,7 @@ async fn process_outbox(
         match effect {
             OutboxEffect::SpawnPty { id, spec } => match pty.spawn(id, &spec) {
                 Ok(spawned) => {
+                    debug_log::log(&format!("spawn OK: tile={:?} cmd={:?}", id, spec.command));
                     tx.send(Command::OnPtySpawned(id)).await.ok();
                     writers.insert(id, spawned.writer);
                     let tx_for_task = tx.clone();
@@ -171,6 +199,10 @@ async fn process_outbox(
                     readers.insert(id, handle);
                 }
                 Err(e) => {
+                    debug_log::log(&format!(
+                        "spawn FAILED: cmd={:?} reason={}",
+                        spec.command, e.reason
+                    ));
                     tx.send(Command::OnPtySpawnFailed {
                         spec,
                         reason: e.reason,
