@@ -98,7 +98,7 @@ For every behaviour change:
 3. Write the minimum code to make it green.
 4. Refactor with the suite green.
 
-- **100% unit-test coverage** on all production code. CI enforces it.
+- **Coverage discipline.** Goal: 100% line coverage. Current floor enforced by `scripts/coverage.sh`: 75%. Infrastructure adapters and the runtime loop are the dominant gap (PortablePtySpawner error paths, RatatuiRenderer draw paths, the long-running tokio select loop). Closing the gap is a v1.1 task; new domain/application/presentation code is expected to maintain or improve coverage.
 - Unit tests live next to the code as `#[cfg(test)] mod tests` in the same
   file. Integration tests under `tests/`.
 - Test names read as sentences:
@@ -137,6 +137,7 @@ cargo test <name>                           # single test
 cargo clippy --all-targets -- -D warnings   # lints (fail on warning)
 cargo fmt --all                             # format
 cargo llvm-cov --fail-under-lines 100       # coverage gate (install once)
+./scripts/coverage.sh                 # full pre-commit gate (fmt, clippy, test, coverage)
 ```
 
 ## Definition of Done
