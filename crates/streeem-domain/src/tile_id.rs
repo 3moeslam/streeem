@@ -26,7 +26,7 @@ impl TileIdFactory {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl TileId {
     pub fn default_from(raw: u32) -> Self {
         Self(raw)

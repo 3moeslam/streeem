@@ -11,3 +11,7 @@ workspace = true
 [dependencies]
 streeem-domain = { path = "../streeem-domain" }
 streeem-application = { path = "../streeem-application" }
+
+[dev-dependencies]
+streeem-domain = { path = "../streeem-domain", features = ["test-support"] }
+streeem-application = { path = "../streeem-application" }
