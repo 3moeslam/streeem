@@ -19,7 +19,8 @@ use streeem_infrastructure::crossterm_terminal_size::CrosstermTerminalSize;
 use streeem_infrastructure::portable_pty_spawner::PortablePtySpawner;
 use streeem_infrastructure::ratatui_renderer::RatatuiRenderer;
 use streeem_presentation::key_map::{AppIntent, KeyOutcome, map as map_key};
-use streeem_presentation::view::{FrameDescription, build as build_view};
+use streeem_presentation::prompt::{PromptOutcome, PromptState};
+use streeem_presentation::view::{FrameDescription, build_with_prompt};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::interval;
@@ -44,6 +45,7 @@ pub async fn run(initial_specs: Vec<CommandSpec>, columns_override: Option<u16>)
     }
 
     let mut tick = interval(Duration::from_millis(33));
+    let mut prompt = PromptState::default();
 
     loop {
         tokio::select! {
@@ -53,16 +55,26 @@ pub async fn run(initial_specs: Vec<CommandSpec>, columns_override: Option<u16>)
             }
             _ = tick.tick() => {
                 if let Some(key) = input.poll_event() {
-                    match map_key(key, &app.snapshot()) {
-                        KeyOutcome::Intent(AppIntent::Quit) => break,
-                        KeyOutcome::Intent(AppIntent::PromptAddTile) => {
-                            // v1: in-app add prompt arrives in Task 32; key is a no-op here.
+                    if prompt.active {
+                        match prompt.handle(key) {
+                            PromptOutcome::Submitted(cmd) => {
+                                let outbox = app.dispatch(cmd);
+                                process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
+                            }
+                            PromptOutcome::InvalidSubmission(_)
+                            | PromptOutcome::Cancelled
+                            | PromptOutcome::Continue => {}
                         }
-                        KeyOutcome::Command(c) => {
-                            let outbox = app.dispatch(c);
-                            process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
+                    } else {
+                        match map_key(key, &app.snapshot()) {
+                            KeyOutcome::Intent(AppIntent::Quit) => break,
+                            KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
+                            KeyOutcome::Command(c) => {
+                                let outbox = app.dispatch(c);
+                                process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
+                            }
+                            KeyOutcome::Ignored => {}
                         }
-                        KeyOutcome::Ignored => {}
                     }
                 }
                 let (w, h) = size_adapter.size();
@@ -71,7 +83,14 @@ pub async fn run(initial_specs: Vec<CommandSpec>, columns_override: Option<u16>)
                     process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
                 }
                 if app.state().dirty {
-                    let frame: FrameDescription = build_view(&app.snapshot());
+                    let frame: FrameDescription = build_with_prompt(
+                        &app.snapshot(),
+                        if prompt.active {
+                            Some(prompt.buffer.clone())
+                        } else {
+                            None
+                        },
+                    );
                     renderer.render(&frame).map_err(|e| anyhow::anyhow!("render: {}", e.0))?;
                 }
             }

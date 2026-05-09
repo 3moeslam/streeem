@@ -13,6 +13,7 @@ pub enum FrameDescription {
     Tiles {
         alerts: Vec<String>,
         tiles: Vec<TileWidget>,
+        prompt: Option<String>,
     },
     TooSmallBanner {
         width: u16,
@@ -50,7 +51,19 @@ pub fn build(snap: &RenderSnapshot) -> FrameDescription {
         .iter()
         .map(|a: &AlertSnapshot| a.message.clone())
         .collect();
-    FrameDescription::Tiles { alerts, tiles }
+    FrameDescription::Tiles {
+        alerts,
+        tiles,
+        prompt: None,
+    }
+}
+
+pub fn build_with_prompt(snap: &RenderSnapshot, prompt_text: Option<String>) -> FrameDescription {
+    let mut frame = build(snap);
+    if let FrameDescription::Tiles { ref mut prompt, .. } = frame {
+        *prompt = prompt_text;
+    }
+    frame
 }
 
 fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
@@ -145,7 +158,11 @@ mod tests {
     fn normal_snapshot_yields_one_tile_widget() {
         let frame = build(&snap_with_one_tile(false));
         match frame {
-            FrameDescription::Tiles { tiles, alerts } => {
+            FrameDescription::Tiles {
+                tiles,
+                alerts,
+                prompt: _,
+            } => {
                 assert_eq!(tiles.len(), 1);
                 assert_eq!(tiles[0].border_color, TileColor::Red);
                 assert!(tiles[0].title.contains("echo a"));
@@ -185,6 +202,15 @@ mod tests {
         });
         if let FrameDescription::Tiles { alerts, .. } = build(&s) {
             assert_eq!(alerts, vec!["boom".to_string()]);
+        }
+    }
+
+    #[test]
+    fn prompt_text_included_in_frame_when_set() {
+        let snap = snap_with_one_tile(false);
+        let frame = build_with_prompt(&snap, Some("echo".to_string()));
+        if let FrameDescription::Tiles { prompt, .. } = frame {
+            assert_eq!(prompt, Some("echo".to_string()));
         }
     }
 

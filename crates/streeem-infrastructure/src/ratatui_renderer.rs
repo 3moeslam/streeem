@@ -47,7 +47,11 @@ fn draw(area: Rect, f: &mut ratatui::Frame<'_>, desc: &FrameDescription) {
             let p = Paragraph::new(message.clone()).block(Block::default().borders(Borders::ALL));
             f.render_widget(p, area);
         }
-        FrameDescription::Tiles { alerts, tiles } => {
+        FrameDescription::Tiles {
+            alerts,
+            tiles,
+            prompt,
+        } => {
             let alert_height = if alerts.is_empty() { 0 } else { 1 };
             if alert_height > 0 {
                 let r = Rect {
@@ -61,6 +65,16 @@ fn draw(area: Rect, f: &mut ratatui::Frame<'_>, desc: &FrameDescription) {
             }
             for t in tiles {
                 draw_tile(area, f, t, alert_height);
+            }
+            if let Some(text) = prompt {
+                let r = Rect {
+                    x: area.x,
+                    y: area.y + area.height.saturating_sub(1),
+                    width: area.width,
+                    height: 1,
+                };
+                let line = format!("prompt> {text}");
+                f.render_widget(Paragraph::new(line), r);
             }
         }
     }
