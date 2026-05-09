@@ -6,6 +6,7 @@ pub mod command_spec;
 pub mod exit_status;
 pub mod output_line;
 pub mod rows_hint;
+pub mod scrollback;
 pub mod scrollback_capacity;
 pub mod style;
 pub mod styled_span;
