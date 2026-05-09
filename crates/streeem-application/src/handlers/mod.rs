@@ -3,12 +3,17 @@ use streeem_domain::state::State;
 
 use crate::command::Command;
 
+pub mod interaction;
 pub mod lifecycle;
 
 pub fn handle(state: &mut State, command: Command) -> Vec<OutboxEffect> {
     match command {
         Command::AddTile(spec) => lifecycle::handle_add_tile(state, spec),
         Command::DropTile(id) => lifecycle::handle_drop_tile(state, id),
+        Command::ResizeTile { id, delta_rows } => interaction::handle_resize(state, id, delta_rows),
+        Command::ScrollTile { id, delta } => interaction::handle_scroll(state, id, delta),
+        Command::MoveFocus(m) => interaction::handle_focus(state, m),
+        Command::ToggleFollowTail(id) => interaction::handle_follow_tail(state, id),
         _ => Vec::new(),
     }
 }
