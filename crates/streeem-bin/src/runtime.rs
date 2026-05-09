@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::time::Duration;
 
+use crate::input_bytes::key_to_bytes;
+use crate::input_mode::Mode;
 use crate::ratatui_renderer::RatatuiRenderer;
 use anyhow::Result;
 use streeem_application::application::Application;
@@ -45,6 +48,8 @@ pub async fn run(
 
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(1024);
     let mut readers: HashMap<TileId, JoinHandle<()>> = HashMap::new();
+    let mut writers: HashMap<TileId, Box<dyn Write + Send>> = HashMap::new();
+    let mut mode = Mode::Command;
 
     for spec in initial_specs {
         cmd_tx.send(Command::AddTile(spec)).await.ok();
@@ -57,39 +62,56 @@ pub async fn run(
         tokio::select! {
             Some(command) = cmd_rx.recv() => {
                 let outbox = app.dispatch(command);
-                process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
+                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
             }
             _ = tick.tick() => {
                 if let Some(key) = input.poll_event() {
-                    if prompt.active {
-                        match prompt.handle(key) {
-                            PromptOutcome::Submitted(cmd) => {
-                                let outbox = app.dispatch(cmd);
-                                process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
+                    match mode {
+                        Mode::Input => {
+                            if key.code == streeem_domain::ports::input_source::KeyCode::Esc {
+                                mode = Mode::Command;
+                            } else if let Some(bytes) = key_to_bytes(key)
+                                && let Some(focused_id) = app.snapshot().focused
+                                && let Some(writer) = writers.get_mut(&focused_id)
+                            {
+                                let _ = writer.write_all(&bytes);
                             }
-                            PromptOutcome::InvalidSubmission(_)
-                            | PromptOutcome::Cancelled
-                            | PromptOutcome::Continue => {}
                         }
-                    } else {
-                        match map_key(key, &app.snapshot()) {
-                            KeyOutcome::Intent(AppIntent::Quit) => break,
-                            KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
-                            KeyOutcome::Command(c) => {
-                                let outbox = app.dispatch(c);
-                                process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
+                        Mode::Command => {
+                            if prompt.active {
+                                match prompt.handle(key) {
+                                    PromptOutcome::Submitted(cmd) => {
+                                        let outbox = app.dispatch(cmd);
+                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
+                                    }
+                                    PromptOutcome::InvalidSubmission(_)
+                                    | PromptOutcome::Cancelled
+                                    | PromptOutcome::Continue => {}
+                                }
+                            } else {
+                                match map_key(key, &app.snapshot()) {
+                                    KeyOutcome::Intent(AppIntent::Quit) => break,
+                                    KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
+                                    KeyOutcome::Intent(AppIntent::EnterInputMode) => {
+                                        mode = Mode::Input;
+                                    }
+                                    KeyOutcome::Command(c) => {
+                                        let outbox = app.dispatch(c);
+                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
+                                    }
+                                    KeyOutcome::Ignored => {}
+                                }
                             }
-                            KeyOutcome::Ignored => {}
                         }
                     }
                 }
                 let (w, h) = size_adapter.size();
                 if (w, h) != app.snapshot().terminal_size {
                     let outbox = app.dispatch(Command::OnTerminalResized { width: w, height: h });
-                    process_outbox(&pty, &cmd_tx, &mut readers, outbox).await;
+                    process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
                 }
                 if app.state().dirty {
-                    let frame: FrameDescription = build_with_prompt(
+                    let mut frame: FrameDescription = build_with_prompt(
                         &app.snapshot(),
                         if prompt.active {
                             Some(prompt.buffer.clone())
@@ -97,6 +119,23 @@ pub async fn run(
                             None
                         },
                     );
+                    if mode == Mode::Input
+                        && let FrameDescription::Tiles { ref mut status_bar, .. } = frame
+                    {
+                        let focused_label = app
+                            .snapshot()
+                            .focused
+                            .and_then(|id| {
+                                app.state()
+                                    .grid
+                                    .tiles
+                                    .iter()
+                                    .find(|t| t.id == id)
+                                    .and_then(|t| t.name.clone())
+                            })
+                            .unwrap_or_else(|| "tile".to_string());
+                        *status_bar = format!("[INPUT — {focused_label}]   Esc:exit input mode");
+                    }
                     renderer.render(&frame).map_err(|e| anyhow::anyhow!("render: {}", e.0))?;
                 }
             }
@@ -109,6 +148,7 @@ async fn process_outbox(
     pty: &PortablePtySpawner,
     tx: &mpsc::Sender<Command>,
     readers: &mut HashMap<TileId, JoinHandle<()>>,
+    writers: &mut HashMap<TileId, Box<dyn Write + Send>>,
     effects: Vec<OutboxEffect>,
 ) {
     for effect in effects {
@@ -116,6 +156,7 @@ async fn process_outbox(
             OutboxEffect::SpawnPty { id, spec } => match pty.spawn(id, &spec) {
                 Ok(spawned) => {
                     tx.send(Command::OnPtySpawned(id)).await.ok();
+                    writers.insert(id, spawned.writer);
                     let tx_for_task = tx.clone();
                     let handle = tokio::task::spawn_blocking(move || {
                         let mut chunks = spawned.byte_chunks;
@@ -141,6 +182,7 @@ async fn process_outbox(
                 if let Some(handle) = readers.remove(&id) {
                     handle.abort();
                 }
+                writers.remove(&id);
             }
             OutboxEffect::RecordAlert(_) => {}
             OutboxEffect::MarkFrameDirty => {}

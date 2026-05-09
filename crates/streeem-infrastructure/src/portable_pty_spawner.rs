@@ -41,6 +41,10 @@ impl PtySpawner for PortablePtySpawner {
         })?;
         drop(pair.slave);
 
+        let writer = pair.master.take_writer().map_err(|e| SpawnError {
+            reason: e.to_string(),
+        })?;
+
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
         let mut reader = pair.master.try_clone_reader().map_err(|e| SpawnError {
             reason: e.to_string(),
@@ -75,6 +79,7 @@ impl PtySpawner for PortablePtySpawner {
         Ok(SpawnedPty {
             id,
             byte_chunks: Box::new(chunks),
+            writer,
             exit,
         })
     }

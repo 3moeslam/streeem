@@ -2,7 +2,7 @@
 
 #![allow(clippy::cast_possible_truncation)]
 
-pub const STATUS_BAR_TEXT: &str = "a:add  d:drop  +/-:resize  Tab:cycle  1-9:focus  \u{2190}\u{2192}\u{2191}\u{2193}:move  f:follow-tail  PgUp/PgDn:scroll  q:quit";
+pub const STATUS_BAR_TEXT: &str = "a:add  d:drop  i:input  +/-:resize  Tab:cycle  1-9:focus  \u{2190}\u{2192}\u{2191}\u{2193}:move  f:follow-tail  PgUp/PgDn:scroll  q:quit";
 
 use streeem_application::command::{Command, ScrollDelta};
 use streeem_application::query::RenderSnapshot;
@@ -13,6 +13,7 @@ use streeem_domain::ports::input_source::{KeyCode, KeyEvent};
 pub enum AppIntent {
     Quit,
     PromptAddTile,
+    EnterInputMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +31,7 @@ pub fn map(key: KeyEvent, snap: &RenderSnapshot) -> KeyOutcome {
         (Char('q'), false) => KeyOutcome::Intent(AppIntent::Quit),
         (Char('c'), true) => KeyOutcome::Intent(AppIntent::Quit),
         (Char('a'), false) => KeyOutcome::Intent(AppIntent::PromptAddTile),
+        (Char('i'), false) => KeyOutcome::Intent(AppIntent::EnterInputMode),
         (Char('d'), false) => focused
             .map(|id| KeyOutcome::Command(Command::DropTile(id)))
             .unwrap_or(KeyOutcome::Ignored),
@@ -177,6 +179,12 @@ mod tests {
             map(KeyEvent::plain(KeyCode::BackTab), &snap(None)),
             KeyOutcome::Command(Command::MoveFocus(FocusMove::CycleBackward))
         );
+    }
+
+    #[test]
+    fn i_means_enter_input_mode() {
+        let r = map(KeyEvent::plain(KeyCode::Char('i')), &snap(None));
+        assert_eq!(r, KeyOutcome::Intent(AppIntent::EnterInputMode));
     }
 
     #[test]

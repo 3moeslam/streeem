@@ -2,7 +2,7 @@ use std::io::{Stdout, stdout};
 
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::Rect;
+use ratatui::layout::{Position, Rect};
 use ratatui::style::{Color, Modifier, Style as RStyle};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
@@ -129,6 +129,21 @@ fn draw_tile(area: Rect, f: &mut ratatui::Frame<'_>, t: &TileWidget, alert_heigh
         .collect();
     let p = Paragraph::new(lines).block(block);
     f.render_widget(p, r);
+
+    if t.focused {
+        let (cur_row, cur_col) = t.cursor;
+        // +1 to skip the border; r.x/r.y are the tile's outer top-left corner.
+        let cursor_x = r.x + 1 + cur_col;
+        let cursor_y = r.y + 1 + cur_row;
+        // Clamp into the tile's interior to avoid drawing on/over the border.
+        if cursor_x < r.x + r.width.saturating_sub(1) && cursor_y < r.y + r.height.saturating_sub(1)
+        {
+            f.set_cursor_position(Position {
+                x: cursor_x,
+                y: cursor_y,
+            });
+        }
+    }
 }
 
 fn translate_style(s: &DStyle) -> RStyle {

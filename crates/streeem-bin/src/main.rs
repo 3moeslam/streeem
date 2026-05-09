@@ -1,4 +1,6 @@
 mod cli;
+mod input_bytes;
+mod input_mode;
 mod ratatui_renderer;
 mod runtime;
 
