@@ -1,106 +1,79 @@
 //! Pure mapping from KeyEvent + current snapshot to an application Command.
-
-#![allow(clippy::cast_possible_truncation)]
-
-pub const STATUS_BAR_TEXT: &str = "a:add  d:drop  i:input  +/-:resize  Tab:cycle  1-9:focus  \u{2190}\u{2192}\u{2191}\u{2193}:move  f:follow-tail  PgUp/PgDn:scroll  q:quit";
+//!
+//! v0.2.0+ design: app commands require the Ctrl modifier. Any key without
+//! Ctrl, or any Ctrl combo not mapped here, is forwarded to the focused
+//! tile's PTY as raw bytes. This eliminates the explicit input/command
+//! mode toggle.
 
 use streeem_application::command::{Command, ScrollDelta};
 use streeem_application::query::RenderSnapshot;
-use streeem_domain::grid::{FocusMove, SpatialDirection};
+use streeem_domain::grid::FocusMove;
 use streeem_domain::ports::input_source::{KeyCode, KeyEvent};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppIntent {
     Quit,
     PromptAddTile,
-    EnterInputMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyOutcome {
     Command(Command),
     Intent(AppIntent),
-    Ignored,
+    Forward,
 }
 
+pub const STATUS_BAR_TEXT: &str = "^A:add  ^X:drop  ^N/^P:next/prev  ^F:follow-tail  ^T/^B:scroll  ^Q:quit  (other keys \u{2192} focused tile)";
+
 pub fn map(key: KeyEvent, snap: &RenderSnapshot) -> KeyOutcome {
-    use KeyCode::*;
+    use KeyCode::Char;
     let focused = snap.focused;
 
-    match (key.code, key.modifiers.ctrl) {
-        (Char('q'), false) => KeyOutcome::Intent(AppIntent::Quit),
-        (Char('c'), true) => KeyOutcome::Intent(AppIntent::Quit),
-        (Char('a'), false) => KeyOutcome::Intent(AppIntent::PromptAddTile),
-        (Char('i'), false) => KeyOutcome::Intent(AppIntent::EnterInputMode),
-        (Char('d'), false) => focused
+    if !key.modifiers.ctrl {
+        return KeyOutcome::Forward;
+    }
+    let Char(c) = key.code else {
+        return KeyOutcome::Forward;
+    };
+    let lc = c.to_ascii_lowercase();
+
+    match lc {
+        'q' => KeyOutcome::Intent(AppIntent::Quit),
+        'a' => KeyOutcome::Intent(AppIntent::PromptAddTile),
+        'x' => focused
             .map(|id| KeyOutcome::Command(Command::DropTile(id)))
-            .unwrap_or(KeyOutcome::Ignored),
-        (Char('+'), false) => focused
-            .map(|id| KeyOutcome::Command(Command::ResizeTile { id, delta_rows: 1 }))
-            .unwrap_or(KeyOutcome::Ignored),
-        (Char('-'), false) => focused
-            .map(|id| KeyOutcome::Command(Command::ResizeTile { id, delta_rows: -1 }))
-            .unwrap_or(KeyOutcome::Ignored),
-        (Char('f'), false) => focused
+            .unwrap_or(KeyOutcome::Forward),
+        'n' => KeyOutcome::Command(Command::MoveFocus(FocusMove::CycleForward)),
+        'p' => KeyOutcome::Command(Command::MoveFocus(FocusMove::CycleBackward)),
+        'f' => focused
             .map(|id| KeyOutcome::Command(Command::ToggleFollowTail(id)))
-            .unwrap_or(KeyOutcome::Ignored),
-        (Char('g'), false) => focused
+            .unwrap_or(KeyOutcome::Forward),
+        't' => focused
             .map(|id| {
                 KeyOutcome::Command(Command::ScrollTile {
                     id,
                     delta: ScrollDelta::Top,
                 })
             })
-            .unwrap_or(KeyOutcome::Ignored),
-        (Char('G'), false) => focused
+            .unwrap_or(KeyOutcome::Forward),
+        'b' => focused
             .map(|id| {
                 KeyOutcome::Command(Command::ScrollTile {
                     id,
                     delta: ScrollDelta::Bottom,
                 })
             })
-            .unwrap_or(KeyOutcome::Ignored),
-        (Char(c), false) if c.is_ascii_digit() && c != '0' => {
-            let n = c.to_digit(10).unwrap_or(1) as u8;
-            KeyOutcome::Command(Command::MoveFocus(FocusMove::Index(n)))
-        }
-        (Tab, false) => KeyOutcome::Command(Command::MoveFocus(FocusMove::CycleForward)),
-        (BackTab, _) => KeyOutcome::Command(Command::MoveFocus(FocusMove::CycleBackward)),
-        (PageUp, false) => focused
-            .map(|id| {
-                KeyOutcome::Command(Command::ScrollTile {
-                    id,
-                    delta: ScrollDelta::Page(1),
-                })
-            })
-            .unwrap_or(KeyOutcome::Ignored),
-        (PageDown, false) => focused
-            .map(|id| {
-                KeyOutcome::Command(Command::ScrollTile {
-                    id,
-                    delta: ScrollDelta::Page(-1),
-                })
-            })
-            .unwrap_or(KeyOutcome::Ignored),
-        (Left, false) => KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
-            SpatialDirection::Left,
-        ))),
-        (Right, false) => KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
-            SpatialDirection::Right,
-        ))),
-        (Up, false) => {
-            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(SpatialDirection::Up)))
-        }
-        (Down, false) => KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
-            SpatialDirection::Down,
-        ))),
-        _ => KeyOutcome::Ignored,
+            .unwrap_or(KeyOutcome::Forward),
+        // Ctrl+C, Ctrl+D, Ctrl+I, Ctrl+M, Ctrl+L, Ctrl+R, Ctrl+S, Ctrl+U,
+        // Ctrl+W, Ctrl+Z, etc. — fall through to the tile.
+        _ => KeyOutcome::Forward,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use streeem_domain::ports::input_source::KeyModifiers;
     use streeem_domain::tile_id::TileId;
 
     fn snap(focused: Option<TileId>) -> RenderSnapshot {
@@ -114,126 +87,114 @@ mod tests {
         }
     }
 
-    #[test]
-    fn q_means_quit() {
-        let r = map(KeyEvent::plain(KeyCode::Char('q')), &snap(None));
-        assert_eq!(r, KeyOutcome::Intent(AppIntent::Quit));
+    fn ctrl(c: char) -> KeyEvent {
+        KeyEvent {
+            code: KeyCode::Char(c),
+            modifiers: KeyModifiers {
+                ctrl: true,
+                shift: false,
+                alt: false,
+            },
+        }
     }
 
     #[test]
-    fn ctrl_c_means_quit() {
-        let mut k = KeyEvent::plain(KeyCode::Char('c'));
-        k.modifiers.ctrl = true;
-        assert_eq!(map(k, &snap(None)), KeyOutcome::Intent(AppIntent::Quit));
-    }
-
-    #[test]
-    fn d_with_no_focus_is_ignored() {
+    fn ctrl_q_means_quit() {
         assert_eq!(
-            map(KeyEvent::plain(KeyCode::Char('d')), &snap(None)),
-            KeyOutcome::Ignored
+            map(ctrl('q'), &snap(None)),
+            KeyOutcome::Intent(AppIntent::Quit)
         );
     }
 
     #[test]
-    fn d_with_focus_drops_focused_tile() {
+    fn ctrl_a_opens_prompt() {
+        assert_eq!(
+            map(ctrl('a'), &snap(None)),
+            KeyOutcome::Intent(AppIntent::PromptAddTile)
+        );
+    }
+
+    #[test]
+    fn ctrl_x_drops_focused_tile() {
         let id = TileId::default_from(7);
         assert_eq!(
-            map(KeyEvent::plain(KeyCode::Char('d')), &snap(Some(id))),
+            map(ctrl('x'), &snap(Some(id))),
             KeyOutcome::Command(Command::DropTile(id))
         );
     }
 
     #[test]
-    fn plus_and_minus_resize_focused_tile() {
-        let id = TileId::default_from(2);
-        assert_eq!(
-            map(KeyEvent::plain(KeyCode::Char('+')), &snap(Some(id))),
-            KeyOutcome::Command(Command::ResizeTile { id, delta_rows: 1 })
-        );
-        assert_eq!(
-            map(KeyEvent::plain(KeyCode::Char('-')), &snap(Some(id))),
-            KeyOutcome::Command(Command::ResizeTile { id, delta_rows: -1 })
-        );
+    fn ctrl_x_with_no_focus_forwards() {
+        assert_eq!(map(ctrl('x'), &snap(None)), KeyOutcome::Forward);
     }
 
     #[test]
-    fn digit_keys_jump_focus_by_index() {
+    fn ctrl_n_cycles_forward() {
         assert_eq!(
-            map(KeyEvent::plain(KeyCode::Char('3')), &snap(None)),
-            KeyOutcome::Command(Command::MoveFocus(FocusMove::Index(3)))
-        );
-    }
-
-    #[test]
-    fn tab_cycles_focus_forward() {
-        assert_eq!(
-            map(KeyEvent::plain(KeyCode::Tab), &snap(None)),
+            map(ctrl('n'), &snap(None)),
             KeyOutcome::Command(Command::MoveFocus(FocusMove::CycleForward))
         );
     }
 
     #[test]
-    fn backtab_cycles_focus_backward() {
+    fn ctrl_p_cycles_backward() {
         assert_eq!(
-            map(KeyEvent::plain(KeyCode::BackTab), &snap(None)),
+            map(ctrl('p'), &snap(None)),
             KeyOutcome::Command(Command::MoveFocus(FocusMove::CycleBackward))
         );
     }
 
     #[test]
-    fn i_means_enter_input_mode() {
-        let r = map(KeyEvent::plain(KeyCode::Char('i')), &snap(None));
-        assert_eq!(r, KeyOutcome::Intent(AppIntent::EnterInputMode));
-    }
-
-    #[test]
-    fn unknown_key_is_ignored() {
+    fn plain_letter_forwards() {
         assert_eq!(
-            map(KeyEvent::plain(KeyCode::Esc), &snap(None)),
-            KeyOutcome::Ignored
+            map(KeyEvent::plain(KeyCode::Char('h')), &snap(None)),
+            KeyOutcome::Forward
         );
     }
 
     #[test]
-    fn left_arrow_moves_focus_left() {
-        let r = map(KeyEvent::plain(KeyCode::Left), &snap(None));
+    fn plain_enter_forwards() {
         assert_eq!(
-            r,
-            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
-                SpatialDirection::Left
-            )))
+            map(KeyEvent::plain(KeyCode::Enter), &snap(None)),
+            KeyOutcome::Forward
         );
     }
 
     #[test]
-    fn right_arrow_moves_focus_right() {
-        let r = map(KeyEvent::plain(KeyCode::Right), &snap(None));
+    fn ctrl_c_forwards_so_sigint_works() {
+        assert_eq!(map(ctrl('c'), &snap(None)), KeyOutcome::Forward);
+    }
+
+    #[test]
+    fn ctrl_d_forwards_so_eof_works() {
+        assert_eq!(map(ctrl('d'), &snap(None)), KeyOutcome::Forward);
+    }
+
+    #[test]
+    fn tab_forwards() {
         assert_eq!(
-            r,
-            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
-                SpatialDirection::Right
-            )))
+            map(KeyEvent::plain(KeyCode::Tab), &snap(None)),
+            KeyOutcome::Forward
         );
     }
 
     #[test]
-    fn up_arrow_moves_focus_up() {
-        let r = map(KeyEvent::plain(KeyCode::Up), &snap(None));
+    fn arrow_keys_forward() {
         assert_eq!(
-            r,
-            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(SpatialDirection::Up)))
+            map(KeyEvent::plain(KeyCode::Up), &snap(None)),
+            KeyOutcome::Forward
         );
-    }
-
-    #[test]
-    fn down_arrow_moves_focus_down() {
-        let r = map(KeyEvent::plain(KeyCode::Down), &snap(None));
         assert_eq!(
-            r,
-            KeyOutcome::Command(Command::MoveFocus(FocusMove::Spatial(
-                SpatialDirection::Down
-            )))
+            map(KeyEvent::plain(KeyCode::Down), &snap(None)),
+            KeyOutcome::Forward
+        );
+        assert_eq!(
+            map(KeyEvent::plain(KeyCode::Left), &snap(None)),
+            KeyOutcome::Forward
+        );
+        assert_eq!(
+            map(KeyEvent::plain(KeyCode::Right), &snap(None)),
+            KeyOutcome::Forward
         );
     }
 }

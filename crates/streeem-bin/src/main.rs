@@ -1,7 +1,6 @@
 mod cli;
 mod debug_log;
 mod input_bytes;
-mod input_mode;
 mod ratatui_renderer;
 mod runtime;
 

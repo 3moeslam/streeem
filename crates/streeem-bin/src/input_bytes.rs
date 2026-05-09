@@ -1,12 +1,12 @@
-//! Translate KeyEvent → bytes for input-mode forwarding to a child PTY.
+//! Translate KeyEvent → bytes for forwarding to a child PTY.
 
 use streeem_domain::ports::input_source::{KeyCode, KeyEvent};
 
 /// Returns the byte sequence to send to the PTY for this key, or None if the
-/// key is not forwarded (e.g., Esc which exits input mode).
+/// key has no meaningful byte representation.
 pub fn key_to_bytes(key: KeyEvent) -> Option<Vec<u8>> {
     match key.code {
-        KeyCode::Esc => None, // handled as mode-exit by caller
+        KeyCode::Esc => Some(b"\x1b".to_vec()),
         KeyCode::Enter => Some(b"\r".to_vec()),
         KeyCode::Tab => Some(b"\t".to_vec()),
         KeyCode::BackTab => Some(b"\x1b[Z".to_vec()),
@@ -56,8 +56,8 @@ mod tests {
     }
 
     #[test]
-    fn esc_returns_none() {
-        assert_eq!(key_to_bytes(k(KeyCode::Esc)), None);
+    fn esc_returns_escape_byte() {
+        assert_eq!(key_to_bytes(k(KeyCode::Esc)), Some(b"\x1b".to_vec()));
     }
 
     #[test]

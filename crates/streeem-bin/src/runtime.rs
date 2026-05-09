@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use crate::debug_log;
 use crate::input_bytes::key_to_bytes;
-use crate::input_mode::Mode;
 use crate::ratatui_renderer::RatatuiRenderer;
 use anyhow::Result;
 use streeem_application::application::Application;
@@ -50,7 +49,6 @@ pub async fn run(
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(1024);
     let mut readers: HashMap<TileId, JoinHandle<()>> = HashMap::new();
     let mut writers: HashMap<TileId, Box<dyn Write + Send>> = HashMap::new();
-    let mut mode = Mode::Command;
 
     for spec in initial_specs {
         cmd_tx.send(Command::AddTile(spec)).await.ok();
@@ -67,67 +65,45 @@ pub async fn run(
             }
             _ = tick.tick() => {
                 while let Some(key) = input.poll_event() {
-                    match mode {
-                        Mode::Input => {
-                            if key.code == streeem_domain::ports::input_source::KeyCode::Esc {
-                                mode = Mode::Command;
-                                debug_log::log("input: Esc -> exit input mode");
-                            } else if let Some(bytes) = key_to_bytes(key) {
+                    if prompt.active {
+                        match prompt.handle(key) {
+                            PromptOutcome::Submitted(cmd) => {
+                                let outbox = app.dispatch(cmd);
+                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
+                            }
+                            PromptOutcome::InvalidSubmission(_)
+                            | PromptOutcome::Cancelled
+                            | PromptOutcome::Continue => {}
+                        }
+                        continue;
+                    }
+                    match map_key(key, &app.snapshot()) {
+                        KeyOutcome::Intent(AppIntent::Quit) => {
+                            debug_log::log("command: ^Q");
+                            break 'outer;
+                        }
+                        KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
+                        KeyOutcome::Command(c) => {
+                            let outbox = app.dispatch(c);
+                            process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
+                        }
+                        KeyOutcome::Forward => {
+                            if let Some(bytes) = key_to_bytes(key) {
                                 let focused = app.snapshot().focused;
                                 let has_writer = focused.is_some_and(|id| writers.contains_key(&id));
                                 debug_log::log(&format!(
-                                    "input: key={:?} bytes={:?} focused={:?} has_writer={}",
+                                    "forward: key={:?} bytes={:?} focused={:?} has_writer={}",
                                     key.code, bytes, focused, has_writer
                                 ));
                                 if let Some(focused_id) = focused
                                     && let Some(writer) = writers.get_mut(&focused_id)
                                 {
-                                    match writer.write_all(&bytes) {
-                                        Ok(()) => debug_log::log(&format!(
-                                            "input: wrote {} bytes to tile {:?}",
-                                            bytes.len(), focused_id
-                                        )),
-                                        Err(e) => debug_log::log(&format!(
-                                            "input: write FAILED for tile {:?}: {e}",
-                                            focused_id
-                                        )),
+                                    if let Err(e) = writer.write_all(&bytes) {
+                                        debug_log::log(&format!("forward: write FAILED: {e}"));
                                     }
                                     if let Err(e) = writer.flush() {
-                                        debug_log::log(&format!("input: flush failed: {e}"));
+                                        debug_log::log(&format!("forward: flush FAILED: {e}"));
                                     }
-                                }
-                            }
-                        }
-                        Mode::Command => {
-                            if prompt.active {
-                                match prompt.handle(key) {
-                                    PromptOutcome::Submitted(cmd) => {
-                                        let outbox = app.dispatch(cmd);
-                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
-                                    }
-                                    PromptOutcome::InvalidSubmission(_)
-                                    | PromptOutcome::Cancelled
-                                    | PromptOutcome::Continue => {}
-                                }
-                            } else {
-                                match map_key(key, &app.snapshot()) {
-                                    KeyOutcome::Intent(AppIntent::Quit) => {
-                                        debug_log::log("command: Quit");
-                                        break 'outer;
-                                    }
-                                    KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
-                                    KeyOutcome::Intent(AppIntent::EnterInputMode) => {
-                                        mode = Mode::Input;
-                                        debug_log::log(&format!(
-                                            "command: 'i' -> input mode (focused={:?})",
-                                            app.snapshot().focused
-                                        ));
-                                    }
-                                    KeyOutcome::Command(c) => {
-                                        let outbox = app.dispatch(c);
-                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
-                                    }
-                                    KeyOutcome::Ignored => {}
                                 }
                             }
                         }
@@ -139,7 +115,7 @@ pub async fn run(
                     process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
                 }
                 if app.state().dirty {
-                    let mut frame: FrameDescription = build_with_prompt(
+                    let frame: FrameDescription = build_with_prompt(
                         &app.snapshot(),
                         if prompt.active {
                             Some(prompt.buffer.clone())
@@ -147,23 +123,6 @@ pub async fn run(
                             None
                         },
                     );
-                    if mode == Mode::Input
-                        && let FrameDescription::Tiles { ref mut status_bar, .. } = frame
-                    {
-                        let focused_label = app
-                            .snapshot()
-                            .focused
-                            .and_then(|id| {
-                                app.state()
-                                    .grid
-                                    .tiles
-                                    .iter()
-                                    .find(|t| t.id == id)
-                                    .and_then(|t| t.name.clone())
-                            })
-                            .unwrap_or_else(|| "tile".to_string());
-                        *status_bar = format!("[INPUT — {focused_label}]   Esc:exit input mode");
-                    }
                     renderer.render(&frame).map_err(|e| anyhow::anyhow!("render: {}", e.0))?;
                 }
             }

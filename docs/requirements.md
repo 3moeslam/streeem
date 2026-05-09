@@ -97,23 +97,21 @@ streeem --columns 4 'cmd1' 'cmd2' 'cmd3' 'cmd4'
 
 ## 6. In-App Interaction
 
-Default keybindings:
+Default keybindings (all app commands require the Ctrl modifier; plain keys forward to the focused tile's PTY):
 
 | Key | Action |
 |---|---|
-| `a` | Open prompt to add a new tile (command + optional rows hint) |
-| `d` | Drop the focused tile (and abort its child); no-op if no tile is focused |
-| `i` | Enter input mode (focused tile becomes input target) |
-| `Esc` | (in input mode) Exit input mode back to command mode |
-| `+` | Grow focused tile by 1 row (re-pack column) |
-| `-` | Shrink focused tile by 1 row (re-pack column) |
-| `→` `←` `↑` `↓` | Move focus spatially within the grid |
-| `Tab` / `Shift-Tab` | Cycle focus forward / backward |
-| `1` … `9` | Jump focus to the Nth tile |
-| `PgUp` / `PgDn` | Scroll focused tile's scrollback by a page |
-| `g` / `G` | Jump to top / bottom of focused tile's scrollback |
-| `f` | Toggle "follow tail" on focused tile (re-enables auto-scroll to bottom) |
-| `q` or `Ctrl-C` | Quit (restores cooked-mode terminal cleanly) |
+| `Ctrl+A` | Open prompt to add a new tile (command + optional rows hint) |
+| `Ctrl+X` | Drop the focused tile (and abort its child); no-op if no tile is focused |
+| `Ctrl+Q` | Quit (restores cooked-mode terminal cleanly) |
+| `Ctrl+N` | Cycle focus forward (next tile) |
+| `Ctrl+P` | Cycle focus backward (previous tile) |
+| `Ctrl+F` | Toggle "follow tail" on focused tile (re-enables auto-scroll to bottom) |
+| `Ctrl+T` | Jump to top of focused tile's scrollback |
+| `Ctrl+B` | Jump to bottom of focused tile's scrollback |
+| anything else | Forwarded to focused tile's PTY as raw bytes |
+
+Pass-through keys (intentionally not captured, so shell usage works): `Ctrl+C` (SIGINT), `Ctrl+D` (EOF), `Ctrl+I`/Tab, `Ctrl+M`/Enter, `Ctrl+L`, `Ctrl+R`, `Ctrl+S`, `Ctrl+U`, `Ctrl+W`, `Ctrl+Z`, all arrow keys, all digits, `Esc`.
 
 Focused tile has an emphasised border (e.g., bold) so it's never ambiguous.
 
@@ -496,11 +494,7 @@ v0.2.0 elevates two prior non-goals into supported features:
   (2D cell grid, cursor position, scroll region, styled cells) backed
   by the `vte` VT100 parser. Apps that use cursor positioning (vim,
   htop, less, claude code) render correctly inside their tile.
-- **Interactive input.** Press `i` to enter input mode; the focused
-  tile becomes the input target and typed keys are written to its
-  PTY stdin. `Esc` exits input mode back to command mode. Arrow keys,
-  Enter, Backspace, and Ctrl-letter combinations are translated to
-  standard terminal byte sequences (CSI, ^A..^Z, \r, \x7f).
+- **Interactive input.** Tiles are always interactive — there is no input/command mode toggle. Plain keys and unmapped Ctrl combos are forwarded directly to the focused tile's PTY stdin. Arrow keys, Enter, Backspace, Esc, and Ctrl-letter combinations are translated to standard terminal byte sequences (CSI, ^A..^Z, \r, \x7f, \x1b). App commands require an explicit Ctrl+letter that is not in the pass-through set.
 - **Visible cursor** in the focused tile, via ratatui's
   `set_cursor_position`.
 
@@ -508,9 +502,8 @@ These changes superseded the v1 "read-only tiles" model. The
 `AnsiInterpreter`, `Scrollback`, `OutputLine`, `StyledSpan` modules
 were removed. New domain dependency: `vte = "0.15"` (pure parser).
 
-Status bar in input mode reads `[INPUT — <tile-name>]   Esc:exit input mode`.
-Status bar in command mode reads:
-`a:add  d:drop  i:input  +/-:resize  Tab:cycle  1-9:focus  ←→↑↓:move  q:quit`.
+Status bar reads:
+`^A:add  ^X:drop  ^N/^P:next/prev  ^F:follow-tail  ^T/^B:scroll  ^Q:quit  (other keys → focused tile)`.
 
 ## 14. Future Scope (deliberately out of v1)
 
