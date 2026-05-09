@@ -25,12 +25,19 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::interval;
 
-pub async fn run(initial_specs: Vec<CommandSpec>, columns_override: Option<u16>) -> Result<()> {
+pub async fn run(
+    initial_specs: Vec<CommandSpec>,
+    columns_override: Option<u16>,
+    min_tile_width: Option<u16>,
+) -> Result<()> {
     let size_adapter = CrosstermTerminalSize;
+    let mtw = min_tile_width.unwrap_or(40);
     let (tw, th) = size_adapter.size();
-    let columns = ColumnCount::new(columns_override.unwrap_or_else(|| (tw / 40).max(1)))
+    let auto_cols = (tw / mtw.max(1)).max(1);
+    let cols_value = columns_override.unwrap_or(auto_cols);
+    let columns = ColumnCount::new(cols_value)
         .map_err(|e| anyhow::anyhow!("invalid columns value: {e:?}"))?;
-    let state = State::new(columns, tw, th);
+    let state = State::with_layout_config(columns, tw, th, columns_override, mtw);
     let mut app = Application::new(state);
     let pty = PortablePtySpawner::new();
     let mut renderer =

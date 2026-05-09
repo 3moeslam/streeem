@@ -111,6 +111,12 @@ pub fn reduce(state: &mut State, event: DomainEvent) -> Vec<OutboxEffect> {
         DomainEvent::TerminalResized { width, height } => {
             state.grid.terminal_width = width;
             state.grid.terminal_height = height;
+            if state.columns_override.is_none() {
+                let new_cols = (width / state.min_tile_width.max(1)).max(1);
+                if let Ok(cc) = crate::column_count::ColumnCount::new(new_cols) {
+                    state.grid.columns = cc;
+                }
+            }
             state.dirty = true;
         }
     }
@@ -249,5 +255,43 @@ mod tests {
             },
         );
         assert!(state.grid.tiles.is_empty());
+    }
+
+    #[test]
+    fn terminal_resize_recomputes_column_count_when_no_override() {
+        let mut state = State::with_layout_config(
+            ColumnCount::new(2).unwrap(),
+            80,
+            30,
+            None, // no override
+            40,   // min_tile_width
+        );
+        let _ = reduce(
+            &mut state,
+            DomainEvent::TerminalResized {
+                width: 200,
+                height: 40,
+            },
+        );
+        assert_eq!(state.grid.columns, ColumnCount::new(5).unwrap()); // 200/40 = 5
+    }
+
+    #[test]
+    fn terminal_resize_preserves_column_count_when_override_set() {
+        let mut state = State::with_layout_config(
+            ColumnCount::new(3).unwrap(),
+            120,
+            30,
+            Some(3), // user override
+            40,
+        );
+        let _ = reduce(
+            &mut state,
+            DomainEvent::TerminalResized {
+                width: 200,
+                height: 40,
+            },
+        );
+        assert_eq!(state.grid.columns, ColumnCount::new(3).unwrap()); // unchanged
     }
 }
