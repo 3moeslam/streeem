@@ -24,5 +24,8 @@ pub fn handle(state: &mut State, command: Command) -> Vec<OutboxEffect> {
         Command::OnTerminalResized { width, height } => {
             pty::handle_terminal_resized(state, width, height)
         }
+        Command::ResizeTileBuffer { id, width, height } => {
+            pty::handle_buffer_resize(state, id, width, height)
+        }
     }
 }

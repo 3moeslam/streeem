@@ -1,9 +1,10 @@
 #![allow(clippy::cast_possible_wrap)]
 use std::io::Read;
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
-use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use streeem_domain::command_spec::CommandSpec;
 use streeem_domain::exit_status::ExitStatus;
 use streeem_domain::ports::pty_spawner::{PtySpawner, SpawnError, SpawnedPty};
@@ -24,7 +25,7 @@ impl PtySpawner for PortablePtySpawner {
         let pair = pty_system
             .openpty(PtySize {
                 rows: 24,
-                cols: 200,
+                cols: 80,
                 pixel_width: 0,
                 pixel_height: 0,
             })
@@ -42,14 +43,31 @@ impl PtySpawner for PortablePtySpawner {
         })?;
         drop(pair.slave);
 
-        let writer = pair.master.take_writer().map_err(|e| SpawnError {
-            reason: e.to_string(),
-        })?;
+        // Wrap master in Arc<Mutex<>> so we can share it between the writer,
+        // reader thread, and resize closure.
+        let master_arc: Arc<Mutex<Box<dyn MasterPty + Send>>> = Arc::new(Mutex::new(pair.master));
+
+        let writer = master_arc
+            .lock()
+            .map_err(|e| SpawnError {
+                reason: format!("master mutex poisoned: {e}"),
+            })?
+            .take_writer()
+            .map_err(|e| SpawnError {
+                reason: e.to_string(),
+            })?;
 
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
-        let mut reader = pair.master.try_clone_reader().map_err(|e| SpawnError {
-            reason: e.to_string(),
-        })?;
+        let mut reader = master_arc
+            .lock()
+            .map_err(|e| SpawnError {
+                reason: format!("master mutex poisoned: {e}"),
+            })?
+            .try_clone_reader()
+            .map_err(|e| SpawnError {
+                reason: e.to_string(),
+            })?;
+
         thread::spawn(move || {
             let mut buf = [0u8; 4096];
             loop {
@@ -62,6 +80,18 @@ impl PtySpawner for PortablePtySpawner {
                     }
                     Err(_) => break,
                 }
+            }
+        });
+
+        let resize_master = Arc::clone(&master_arc);
+        let resize: Box<dyn FnMut(u16, u16) + Send> = Box::new(move |cols: u16, rows: u16| {
+            if let Ok(m) = resize_master.lock() {
+                let _ = m.resize(PtySize {
+                    rows: rows.max(1),
+                    cols: cols.max(1),
+                    pixel_width: 0,
+                    pixel_height: 0,
+                });
             }
         });
 
@@ -81,6 +111,7 @@ impl PtySpawner for PortablePtySpawner {
             id,
             byte_chunks: Box::new(chunks),
             writer,
+            resize,
             exit,
         })
     }

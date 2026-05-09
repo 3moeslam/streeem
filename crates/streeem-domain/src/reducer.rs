@@ -117,6 +117,17 @@ pub fn reduce(state: &mut State, event: DomainEvent) -> Vec<OutboxEffect> {
             }
             state.dirty = true;
         }
+        DomainEvent::TileBufferResized { id, width, height } => {
+            if let Some(tile) = state.grid.tiles.iter_mut().find(|t| t.id == id) {
+                tile.resize_buffer(width, height);
+                state.dirty = true;
+                out.push(OutboxEffect::ResizePty {
+                    id,
+                    cols: width,
+                    rows: height,
+                });
+            }
+        }
     }
     out.push(OutboxEffect::MarkFrameDirty);
     out
@@ -271,6 +282,53 @@ mod tests {
             },
         );
         assert_eq!(state.grid.columns, ColumnCount::new(5).unwrap()); // 200/40 = 5
+    }
+
+    #[test]
+    fn tile_buffer_resized_changes_buffer_dimensions() {
+        let mut state = fresh_state();
+        let id = state.id_factory.next_id();
+        let _ = reduce(
+            &mut state,
+            DomainEvent::TileAdded {
+                id,
+                spec: spec("a"),
+            },
+        );
+        let out = reduce(
+            &mut state,
+            DomainEvent::TileBufferResized {
+                id,
+                width: 50,
+                height: 12,
+            },
+        );
+        let tile = state.grid.tiles.iter().find(|t| t.id == id).unwrap();
+        assert_eq!(tile.buffer.width(), 50);
+        assert_eq!(tile.buffer.height(), 12);
+        assert!(
+            out.iter()
+                .any(|e| matches!(e, OutboxEffect::ResizePty { .. }))
+        );
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn tile_buffer_resized_for_unknown_id_is_noop() {
+        let mut state = fresh_state();
+        let out = reduce(
+            &mut state,
+            DomainEvent::TileBufferResized {
+                id: TileId::default_from(99),
+                width: 50,
+                height: 12,
+            },
+        );
+        // Only MarkFrameDirty, no ResizePty.
+        assert!(
+            !out.iter()
+                .any(|e| matches!(e, OutboxEffect::ResizePty { .. }))
+        );
     }
 
     #[test]

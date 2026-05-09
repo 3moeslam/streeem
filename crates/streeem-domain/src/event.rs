@@ -18,4 +18,5 @@ pub enum DomainEvent {
     TileScrolled { id: TileId, delta_lines: i32 },
     FollowTailToggled(TileId),
     TerminalResized { width: u16, height: u16 },
+    TileBufferResized { id: TileId, width: u16, height: u16 },
 }

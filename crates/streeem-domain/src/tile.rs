@@ -66,6 +66,10 @@ impl Tile {
     pub fn resize(&mut self, delta: i16) {
         self.rows_hint = self.rows_hint.saturating_add(delta);
     }
+
+    pub fn resize_buffer(&mut self, width: u16, height: u16) {
+        self.buffer.resize(width, height);
+    }
 }
 
 #[cfg(test)]

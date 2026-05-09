@@ -19,6 +19,7 @@ pub struct SpawnedPty {
     pub id: TileId,
     pub byte_chunks: Box<dyn Iterator<Item = Vec<u8>> + Send>,
     pub writer: Box<dyn Write + Send>,
+    pub resize: Box<dyn FnMut(u16, u16) + Send>,
     pub exit: Box<dyn FnOnce() -> ExitStatus + Send>,
 }
 
@@ -127,6 +128,7 @@ pub mod fakes {
                 id,
                 byte_chunks: Box::new(bytes),
                 writer: Box::new(writer),
+                resize: Box::new(|_cols: u16, _rows: u16| {}),
                 exit: Box::new(move || exit_status),
             })
         }
