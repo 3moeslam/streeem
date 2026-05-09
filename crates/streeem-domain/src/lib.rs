@@ -1,5 +1,6 @@
 #![doc = "Pure domain layer for streeem. No I/O, no async, no UI types."]
 
+pub mod ansi;
 pub mod color_palette;
 pub mod column_count;
 pub mod command_spec;
