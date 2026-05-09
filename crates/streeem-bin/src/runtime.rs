@@ -65,7 +65,7 @@ pub async fn run(
                 process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, outbox).await;
             }
             _ = tick.tick() => {
-                if let Some(key) = input.poll_event() {
+                while let Some(key) = input.poll_event() {
                     match mode {
                         Mode::Input => {
                             if key.code == streeem_domain::ports::input_source::KeyCode::Esc {
@@ -75,6 +75,7 @@ pub async fn run(
                                 && let Some(writer) = writers.get_mut(&focused_id)
                             {
                                 let _ = writer.write_all(&bytes);
+                                let _ = writer.flush();
                             }
                         }
                         Mode::Command => {
@@ -141,6 +142,7 @@ pub async fn run(
             }
         }
     }
+    #[allow(unreachable_code)]
     Ok(())
 }
 
