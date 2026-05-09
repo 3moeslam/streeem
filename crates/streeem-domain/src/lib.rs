@@ -5,6 +5,7 @@ pub mod color_palette;
 pub mod column_count;
 pub mod command_spec;
 pub mod exit_status;
+pub mod layout_packer;
 pub mod output_line;
 pub mod rows_hint;
 pub mod scrollback;

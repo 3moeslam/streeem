@@ -27,6 +27,13 @@ impl TileIdFactory {
 }
 
 #[cfg(test)]
+impl TileId {
+    pub fn default_from(raw: u32) -> Self {
+        Self(raw)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
