@@ -38,6 +38,10 @@ pub async fn run(
     columns_override: Option<u16>,
     min_tile_width: Option<u16>,
 ) -> Result<()> {
+    let default_shell_command = std::env::var("SHELL")
+        .map(|s| format!("{s} -i"))
+        .unwrap_or_else(|_| "bash --noprofile --norc -i".to_string());
+
     let size_adapter = CrosstermTerminalSize;
     let mtw = min_tile_width.unwrap_or(40);
     let (tw, th) = size_adapter.size();
@@ -109,8 +113,14 @@ pub async fn run(
                                     break 'outer;
                                 }
                                 'a' => {
-                                    debug_log::log("cmd-mode: add tile prompt");
-                                    prompt.open();
+                                    debug_log::log(&format!(
+                                        "command-mode 'a' -> spawn default shell: {}",
+                                        default_shell_command
+                                    ));
+                                    if let Ok(spec) = CommandSpec::with_default_rows(default_shell_command.clone()) {
+                                        let outbox = app.dispatch(Command::AddTile(spec));
+                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                    }
                                     command_mode_until = None;
                                 }
                                 'x' => {
@@ -183,7 +193,16 @@ pub async fn run(
                             debug_log::log("command: ^Q");
                             break 'outer;
                         }
-                        KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
+                        KeyOutcome::Intent(AppIntent::PromptAddTile) => {
+                            debug_log::log(&format!(
+                                "command-mode 'a' -> spawn default shell: {}",
+                                default_shell_command
+                            ));
+                            if let Ok(spec) = CommandSpec::with_default_rows(default_shell_command.clone()) {
+                                let outbox = app.dispatch(Command::AddTile(spec));
+                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                            }
+                        }
                         KeyOutcome::Command(c) => {
                             let outbox = app.dispatch(c);
                             process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;

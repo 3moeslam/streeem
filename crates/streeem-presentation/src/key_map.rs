@@ -29,7 +29,7 @@ pub const STATUS_BAR_TEXT_FORWARDING: &str =
     "type to focused tile  \u{2022}  Esc Esc:command mode  \u{2022}  Ctrl+Q:quit";
 
 pub const STATUS_BAR_TEXT_COMMAND: &str =
-    "[CMD] a:add  x:drop  n:next  p:prev  f:follow  q:quit  Esc:exit";
+    "[CMD] a:new shell  x:drop  n:next  p:prev  f:follow  q:quit  Esc:exit";
 
 pub fn map(key: KeyEvent, snap: &RenderSnapshot) -> KeyOutcome {
     use KeyCode::Char;
