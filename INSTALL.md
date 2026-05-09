@@ -4,26 +4,25 @@ Streeem is a Rust TUI that hosts multiple terminals in a staggered grid. It runs
 
 ---
 
-## 1. macOS — Homebrew direct-URL install
+## 1. macOS — Homebrew, formula downloaded then installed locally
 
-The formula lives in the [main streeem repo](https://github.com/3moeslam/streeem) at `Formula/streeem.rb` (auto-published by the release workflow). Install with:
+The formula lives in the [main streeem repo](https://github.com/3moeslam/streeem) at `Formula/streeem.rb` (auto-published by the release workflow). `brew install` doesn't accept a remote URL directly, so download the file first:
 
 ```sh
-brew install https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
+curl -fsSL -o /tmp/streeem.rb \
+  https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
+brew install --formula /tmp/streeem.rb
+rm /tmp/streeem.rb
 ```
 
 After install:
 
 ```sh
+streeem --version
 streeem --name shell "${SHELL:-bash} -i"
 ```
 
-To upgrade later, reinstall from the same URL (no `brew upgrade` since this isn't a tap):
-
-```sh
-brew uninstall streeem
-brew install https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
-```
+To upgrade later, repeat the same three commands. The formula on master always points at the latest tagged release, so the second `brew install` will pick up the new version. (`brew upgrade streeem` won't work — that's reserved for taps; this isn't a tap.)
 
 To uninstall:
 
@@ -31,7 +30,7 @@ To uninstall:
 brew uninstall streeem
 ```
 
-> Note: this is intentionally a direct-URL install rather than a tap. The traditional `brew tap`/`brew upgrade` flow would require a separate `homebrew-streeem` repo (Homebrew convention). If you'd prefer the tap experience over the single-repo simplicity, switch back to that setup; see commit history for the previous config.
+> Note: the formula is in the main `streeem` repo rather than a separate `homebrew-streeem` tap (which Homebrew's convention requires). One-repo simplicity at the cost of `brew tap`/`brew upgrade`. If you'd rather have the tap experience, switch to the conventional setup; see git history for the previous `dist-workspace.toml` config.
 
 ---
 
