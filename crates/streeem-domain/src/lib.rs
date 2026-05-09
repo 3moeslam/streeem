@@ -12,5 +12,6 @@ pub mod scrollback;
 pub mod scrollback_capacity;
 pub mod style;
 pub mod styled_span;
+pub mod tile;
 pub mod tile_color;
 pub mod tile_id;
