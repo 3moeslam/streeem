@@ -2,6 +2,7 @@
 
 pub mod column_count;
 pub mod command_spec;
+pub mod exit_status;
 pub mod output_line;
 pub mod rows_hint;
 pub mod scrollback_capacity;
