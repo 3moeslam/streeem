@@ -44,55 +44,22 @@ pub fn pack(input: LayoutInput<'_>) -> Vec<Placement> {
         let row_offset = col_heights[col_idx as usize];
         let height = hint.value();
         let bottom = row_offset.saturating_add(height as u32);
+        let is_clipped = bottom > input.terminal_height as u32;
+        let visible_height = if is_clipped {
+            (input.terminal_height as u32).saturating_sub(row_offset) as u16
+        } else {
+            height
+        };
         placements.push(Placement {
             tile_id: id,
             column: col_idx,
             row_offset: row_offset.try_into().unwrap_or(u16::MAX),
-            height,
+            height: visible_height,
             width,
-            is_clipped: false,
+            is_clipped,
         });
         col_heights[col_idx as usize] = bottom;
     }
-
-    // Second pass: rescale heights per column to fill the full terminal height.
-    for col_idx in 0..cols {
-        let col_indices: Vec<usize> = placements
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.column == col_idx)
-            .map(|(i, _)| i)
-            .collect();
-        if col_indices.is_empty() {
-            continue;
-        }
-        let total: u32 = col_indices
-            .iter()
-            .map(|&i| placements[i].height as u32)
-            .sum();
-        if total == 0 {
-            continue;
-        }
-        let mut acc: u32 = 0;
-        let last = col_indices.len() - 1;
-        let visible = input.terminal_height as u32;
-        for (n, &i) in col_indices.iter().enumerate() {
-            placements[i].row_offset = acc.try_into().unwrap_or(u16::MAX);
-            let new_height = if n == last {
-                visible.saturating_sub(acc)
-            } else {
-                placements[i].height as u32 * visible / total
-            };
-            placements[i].height = new_height.try_into().unwrap_or(u16::MAX);
-            acc += placements[i].height as u32;
-        }
-    }
-
-    // is_clipped is always false because we always fill exactly.
-    for p in &mut placements {
-        p.is_clipped = false;
-    }
-
     placements
 }
 
@@ -112,9 +79,6 @@ mod tests {
 
     #[test]
     fn single_column_stacks_in_order() {
-        // tiles [(0, rh=10), (1, rh=8)] in 1 col, terminal 80x100.
-        // total=18. tile0: height=10*100/18=55, row_offset=0.
-        // tile1 (last): height=100-55=45, row_offset=55.
         let tiles = vec![(id(0), rh(10)), (id(1), rh(8))];
         let placements = pack(LayoutInput {
             tiles: &tiles,
@@ -123,20 +87,12 @@ mod tests {
             terminal_height: 100,
         });
         assert_eq!(placements[0].row_offset, 0);
-        assert_eq!(placements[0].height, 55);
-        assert_eq!(placements[1].row_offset, 55);
-        assert_eq!(placements[1].height, 45);
+        assert_eq!(placements[1].row_offset, 10);
         assert!(!placements.iter().any(|p| p.is_clipped));
     }
 
     #[test]
     fn picks_shortest_column_then_lowest_index_on_tie() {
-        // Tiles: [(0,20), (1,8), (2,12), (3,5), (4,15)], 3 cols, terminal_height=60.
-        // col 0: tile 0 alone (rh=20). After scaling: tile0 height=60, row_offset=0.
-        // col 1: tile 1 (rh=8) and tile 3 (rh=5), total=13.
-        //   tile1 height=8*60/13=36, row_offset=0. tile3 height=60-36=24, row_offset=36.
-        // col 2: tile 2 (rh=12) and tile 4 (rh=15), total=27.
-        //   tile2 height=12*60/27=26, row_offset=0. tile4 height=60-26=34, row_offset=26.
         let tiles = vec![
             (id(0), rh(20)), // -> col 0
             (id(1), rh(8)),  // -> col 1 (tie with col 2; lowest idx)
@@ -151,34 +107,26 @@ mod tests {
             terminal_height: 60,
         });
         assert_eq!(placements[0].column, 0);
-        assert_eq!(placements[0].row_offset, 0);
-        assert_eq!(placements[0].height, 60);
         assert_eq!(placements[1].column, 1);
-        assert_eq!(placements[1].row_offset, 0);
-        assert_eq!(placements[1].height, 36);
         assert_eq!(placements[2].column, 2);
-        assert_eq!(placements[2].row_offset, 0);
-        assert_eq!(placements[2].height, 26);
         assert_eq!(placements[3].column, 1);
-        assert_eq!(placements[3].row_offset, 36);
-        assert_eq!(placements[3].height, 24);
+        assert_eq!(placements[3].row_offset, 8);
         assert_eq!(placements[4].column, 2);
-        assert_eq!(placements[4].row_offset, 26);
-        assert_eq!(placements[4].height, 34);
+        assert_eq!(placements[4].row_offset, 12);
     }
 
     #[test]
-    fn fills_column_height_when_summed_hints_undershoot() {
-        // 1 tile of rh=10 in 1 col, terminal_height=50 => tile.height=50.
-        let tiles = vec![(id(0), rh(10))];
+    fn marks_clipped_when_total_exceeds_height() {
+        let tiles = vec![(id(0), rh(40)), (id(1), rh(40))];
         let placements = pack(LayoutInput {
             tiles: &tiles,
             columns: cc(1),
             terminal_width: 80,
             terminal_height: 50,
         });
-        assert_eq!(placements[0].height, 50);
         assert!(!placements[0].is_clipped);
+        assert!(placements[1].is_clipped);
+        assert_eq!(placements[1].height, 10);
     }
 
     #[test]
@@ -191,37 +139,5 @@ mod tests {
             terminal_height: 30,
         });
         assert!(placements.iter().all(|p| p.width == 40));
-    }
-
-    #[test]
-    fn single_tile_fills_entire_column_when_hint_is_small() {
-        // 1 tile rh=5, 1 col, terminal_height=30 → tile.height=30.
-        let tiles = vec![(id(0), rh(5))];
-        let placements = pack(LayoutInput {
-            tiles: &tiles,
-            columns: cc(1),
-            terminal_width: 80,
-            terminal_height: 30,
-        });
-        assert_eq!(placements[0].height, 30);
-        assert_eq!(placements[0].row_offset, 0);
-    }
-
-    #[test]
-    fn two_tiles_in_one_column_split_proportionally() {
-        // 2 tiles rh=10 and rh=20 in 1 col, terminal_height=60.
-        // total=30. tile0: height=10*60/30=20, row_offset=0.
-        // tile1 (last): height=60-20=40, row_offset=20.
-        let tiles = vec![(id(0), rh(10)), (id(1), rh(20))];
-        let placements = pack(LayoutInput {
-            tiles: &tiles,
-            columns: cc(1),
-            terminal_width: 80,
-            terminal_height: 60,
-        });
-        assert_eq!(placements[0].height, 20);
-        assert_eq!(placements[0].row_offset, 0);
-        assert_eq!(placements[1].height, 40);
-        assert_eq!(placements[1].row_offset, 20);
     }
 }
