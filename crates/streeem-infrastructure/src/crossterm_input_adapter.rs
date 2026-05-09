@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crossterm::event::{
-    self, Event, KeyCode as CtKeyCode, KeyEvent as CtKeyEvent, KeyModifiers as CtMods,
+    self, Event, KeyCode as CtKeyCode, KeyEvent as CtKeyEvent, KeyEventKind, KeyModifiers as CtMods,
 };
 use streeem_domain::ports::input_source::{InputSource, KeyCode, KeyEvent, KeyModifiers};
 
@@ -16,13 +16,17 @@ impl CrosstermInputAdapter {
 
 impl InputSource for CrosstermInputAdapter {
     fn poll_event(&mut self) -> Option<KeyEvent> {
-        if !event::poll(Duration::from_millis(0)).ok()? {
-            return None;
+        // Drain non-key events (Resize, Mouse, FocusGained/Lost, Paste) and
+        // Release/Repeat key events, so a queued keystroke isn't masked by
+        // an event we don't care about. Returns the first Press key event.
+        while event::poll(Duration::from_millis(0)).ok()? {
+            if let Event::Key(k) = event::read().ok()?
+                && k.kind == KeyEventKind::Press
+            {
+                return Some(translate(k));
+            }
         }
-        match event::read().ok()? {
-            Event::Key(k) => Some(translate(k)),
-            _ => None,
-        }
+        None
     }
 }
 
