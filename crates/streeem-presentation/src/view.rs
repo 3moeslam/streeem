@@ -1,10 +1,11 @@
 //! Pure builder: RenderSnapshot -> FrameDescription.
 
 #![cfg_attr(test, allow(clippy::panic, clippy::unwrap_used))]
+#![allow(clippy::type_complexity)]
 
 use streeem_application::query::{AlertSnapshot, RenderSnapshot, TileSnapshot};
 use streeem_domain::layout_packer::Placement;
-use streeem_domain::output_line::OutputLine;
+use streeem_domain::terminal_buffer::Cell;
 use streeem_domain::tile::RunStatus;
 use streeem_domain::tile_color::TileColor;
 
@@ -31,7 +32,8 @@ pub struct TileWidget {
     pub border_color: TileColor,
     pub title: String,
     pub focused: bool,
-    pub body: Vec<OutputLine>,
+    pub cells: Vec<Vec<Cell>>,
+    pub cursor: (u16, u16),
     pub clipped: bool,
     pub paused: bool,
 }
@@ -84,7 +86,7 @@ fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
             width: 0,
             is_clipped: false,
         });
-    let line_count = tile.lines.len();
+    let row_count = tile.cells.len();
     let status_badges = match (tile.follow_tail, placement.is_clipped, tile.run_status) {
         (false, _, _) => " [paused]".to_string(),
         (_, true, _) => " [clipped]".to_string(),
@@ -98,7 +100,7 @@ fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
             n = tile.focus_index,
             cmd = tile.title_command,
             rows = placement.height,
-            lines = line_count,
+            lines = row_count,
             badges = status_badges,
         )
     } else {
@@ -108,7 +110,7 @@ fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
             name = tile.display_name,
             cmd = tile.title_command,
             rows = placement.height,
-            lines = line_count,
+            lines = row_count,
             badges = status_badges,
         )
     };
@@ -117,7 +119,8 @@ fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
         border_color: tile.color,
         title,
         focused: snap.focused == Some(tile.id),
-        body: tile.lines.clone(),
+        cells: tile.cells.clone(),
+        cursor: tile.cursor,
         clipped: placement.is_clipped,
         paused: !tile.follow_tail,
     }
@@ -128,8 +131,23 @@ mod tests {
     use super::*;
     use streeem_domain::command_spec::CommandSpec;
     use streeem_domain::scrollback_capacity::ScrollbackCapacity;
+    use streeem_domain::style::Style;
     use streeem_domain::tile::Tile;
     use streeem_domain::tile_id::TileId;
+
+    fn cells_with(text: &str, width: usize) -> Vec<Vec<Cell>> {
+        let mut row: Vec<Cell> = text
+            .chars()
+            .map(|c| Cell {
+                ch: c,
+                style: Style::default(),
+            })
+            .collect();
+        while row.len() < width {
+            row.push(Cell::default());
+        }
+        vec![row]
+    }
 
     fn snap_with_one_tile(too_small: bool) -> RenderSnapshot {
         let id = TileId::default_from(0);
@@ -150,7 +168,8 @@ mod tests {
             run_status: RunStatus::Running,
             follow_tail: true,
             scroll_offset_from_bottom: 0,
-            lines: vec![OutputLine::plain_text("hello")],
+            cells: cells_with("hello", 80),
+            cursor: (0, 5),
         };
         RenderSnapshot {
             terminal_size: if too_small { (20, 5) } else { (80, 30) },
@@ -190,6 +209,7 @@ mod tests {
                 assert!(!tiles[0].title.contains("1: echo a"));
                 assert!(alerts.is_empty());
                 assert!(tiles[0].focused);
+                assert_eq!(tiles[0].cells[0][0].ch, 'h');
             }
             _ => panic!("expected Tiles"),
         }
@@ -254,7 +274,8 @@ mod tests {
             run_status: RunStatus::Running,
             follow_tail: true,
             scroll_offset_from_bottom: 0,
-            lines: Vec::new(),
+            cells: Vec::new(),
+            cursor: (0, 0),
         };
         RenderSnapshot {
             terminal_size: (80, 30),

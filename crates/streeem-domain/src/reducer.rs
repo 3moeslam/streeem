@@ -46,11 +46,9 @@ pub fn reduce(state: &mut State, event: DomainEvent) -> Vec<OutboxEffect> {
                 let _ = status;
             }
         }
-        DomainEvent::OutputAppended { id, lines } => {
+        DomainEvent::BytesReceived { id, bytes } => {
             if let Some(tile) = state.grid.tiles.iter_mut().find(|t| t.id == id) {
-                for line in lines {
-                    tile.append_output(line);
-                }
+                tile.feed_bytes(&bytes);
                 state.dirty = true;
             }
         }
@@ -130,7 +128,6 @@ mod tests {
     use crate::column_count::ColumnCount;
     use crate::command_spec::CommandSpec;
     use crate::exit_status::ExitStatus;
-    use crate::output_line::OutputLine;
     use crate::tile_id::TileId;
 
     fn fresh_state() -> State {
@@ -209,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn output_appended_pushes_lines_into_tile_scrollback() {
+    fn bytes_received_appended_to_tile_buffer() {
         let mut state = fresh_state();
         let id = state.id_factory.next_id();
         let _ = reduce(
@@ -221,13 +218,26 @@ mod tests {
         );
         let _ = reduce(
             &mut state,
-            DomainEvent::OutputAppended {
+            DomainEvent::BytesReceived {
                 id,
-                lines: vec![OutputLine::plain_text("x"), OutputLine::plain_text("y")],
+                bytes: b"hi".to_vec(),
             },
         );
         let tile = state.grid.tiles.iter().find(|t| t.id == id).unwrap();
-        assert_eq!(tile.scrollback.len(), 2);
+        assert_eq!(tile.buffer.visible_rows()[0][0].ch, 'h');
+    }
+
+    #[test]
+    fn bytes_received_for_unknown_id_is_noop() {
+        let mut state = fresh_state();
+        let _ = reduce(
+            &mut state,
+            DomainEvent::BytesReceived {
+                id: TileId::default_from(99),
+                bytes: b"ghost".to_vec(),
+            },
+        );
+        assert!(state.grid.tiles.is_empty());
     }
 
     #[test]
@@ -242,19 +252,6 @@ mod tests {
         );
         assert_eq!(state.grid.terminal_width, 200);
         assert_eq!(state.grid.terminal_height, 50);
-    }
-
-    #[test]
-    fn output_appended_for_unknown_id_is_noop() {
-        let mut state = fresh_state();
-        let _ = reduce(
-            &mut state,
-            DomainEvent::OutputAppended {
-                id: TileId::default_from(99),
-                lines: vec![OutputLine::plain_text("ghost")],
-            },
-        );
-        assert!(state.grid.tiles.is_empty());
     }
 
     #[test]

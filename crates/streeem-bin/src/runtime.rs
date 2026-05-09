@@ -5,7 +5,6 @@ use crate::ratatui_renderer::RatatuiRenderer;
 use anyhow::Result;
 use streeem_application::application::Application;
 use streeem_application::command::Command;
-use streeem_domain::ansi::AnsiInterpreter;
 use streeem_domain::column_count::ColumnCount;
 use streeem_domain::command_spec::CommandSpec;
 use streeem_domain::outbox::OutboxEffect;
@@ -119,14 +118,10 @@ async fn process_outbox(
                     tx.send(Command::OnPtySpawned(id)).await.ok();
                     let tx_for_task = tx.clone();
                     let handle = tokio::task::spawn_blocking(move || {
-                        let mut interpreter = AnsiInterpreter::new();
                         let mut chunks = spawned.byte_chunks;
                         for chunk in chunks.by_ref() {
-                            let lines = interpreter.feed(&chunk);
-                            if !lines.is_empty() {
-                                let _ =
-                                    tx_for_task.blocking_send(Command::OnPtyOutput { id, lines });
-                            }
+                            let _ =
+                                tx_for_task.blocking_send(Command::OnPtyBytes { id, bytes: chunk });
                         }
                         let status = (spawned.exit)();
                         let _ = tx_for_task.blocking_send(Command::OnPtyExited { id, status });

@@ -3,13 +3,12 @@
 use streeem_domain::event::DomainEvent;
 use streeem_domain::exit_status::ExitStatus;
 use streeem_domain::outbox::OutboxEffect;
-use streeem_domain::output_line::OutputLine;
 use streeem_domain::reducer::reduce;
 use streeem_domain::state::State;
 use streeem_domain::tile_id::TileId;
 
-pub fn handle_output(state: &mut State, id: TileId, lines: Vec<OutputLine>) -> Vec<OutboxEffect> {
-    reduce(state, DomainEvent::OutputAppended { id, lines })
+pub fn handle_bytes(state: &mut State, id: TileId, bytes: Vec<u8>) -> Vec<OutboxEffect> {
+    reduce(state, DomainEvent::BytesReceived { id, bytes })
 }
 
 pub fn handle_spawned(state: &mut State, id: TileId) -> Vec<OutboxEffect> {
@@ -36,12 +35,12 @@ mod tests {
     }
 
     #[test]
-    fn output_appended_pushes_lines_into_tile() {
+    fn bytes_appended_to_tile_buffer() {
         let mut s = fresh();
         let _ = handle_add_tile(&mut s, CommandSpec::with_default_rows("a").unwrap());
         let id = s.grid.tiles[0].id;
-        let _ = handle_output(&mut s, id, vec![OutputLine::plain_text("hi")]);
-        assert_eq!(s.grid.tiles[0].scrollback.len(), 1);
+        let _ = handle_bytes(&mut s, id, b"hi".to_vec());
+        assert_eq!(s.grid.tiles[0].buffer.visible_rows()[0][0].ch, 'h');
     }
 
     #[test]

@@ -3,7 +3,6 @@
 use streeem_domain::command_spec::CommandSpec;
 use streeem_domain::exit_status::ExitStatus;
 use streeem_domain::grid::FocusMove;
-use streeem_domain::output_line::OutputLine;
 use streeem_domain::tile_id::TileId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +21,7 @@ pub enum Command {
     ScrollTile { id: TileId, delta: ScrollDelta },
     MoveFocus(FocusMove),
     ToggleFollowTail(TileId),
-    OnPtyOutput { id: TileId, lines: Vec<OutputLine> },
+    OnPtyBytes { id: TileId, bytes: Vec<u8> },
     OnPtySpawned(TileId),
     OnPtySpawnFailed { spec: CommandSpec, reason: String },
     OnPtyExited { id: TileId, status: ExitStatus },

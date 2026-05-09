@@ -1,12 +1,11 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
-//! A single hosted tile: identity, colour, command, scrollback, run status.
+//! A single hosted tile: identity, colour, command, terminal buffer, run status.
 
 use crate::command_spec::CommandSpec;
 use crate::exit_status::ExitStatus;
-use crate::output_line::OutputLine;
 use crate::rows_hint::RowsHint;
-use crate::scrollback::Scrollback;
 use crate::scrollback_capacity::ScrollbackCapacity;
+use crate::terminal_buffer::TerminalBuffer;
 use crate::tile_color::TileColor;
 use crate::tile_id::TileId;
 
@@ -23,7 +22,7 @@ pub struct Tile {
     pub color: TileColor,
     pub spec: CommandSpec,
     pub rows_hint: RowsHint,
-    pub scrollback: Scrollback,
+    pub buffer: TerminalBuffer,
     pub run_status: RunStatus,
     pub follow_tail: bool,
     pub scroll_offset_from_bottom: u32,
@@ -44,7 +43,7 @@ impl Tile {
             color,
             spec,
             rows_hint,
-            scrollback: Scrollback::new(capacity),
+            buffer: TerminalBuffer::new(80, 24, capacity),
             run_status: RunStatus::Spawning,
             follow_tail: true,
             scroll_offset_from_bottom: 0,
@@ -60,8 +59,8 @@ impl Tile {
         self.run_status = RunStatus::Exited(status);
     }
 
-    pub fn append_output(&mut self, line: OutputLine) {
-        self.scrollback.push(line);
+    pub fn feed_bytes(&mut self, bytes: &[u8]) {
+        self.buffer.feed(bytes);
     }
 
     pub fn resize(&mut self, delta: i16) {
@@ -111,10 +110,10 @@ mod tests {
     }
 
     #[test]
-    fn append_output_pushes_into_scrollback() {
+    fn feed_bytes_appends_to_buffer() {
         let mut t = make_tile();
-        t.append_output(OutputLine::plain_text("first"));
-        assert_eq!(t.scrollback.len(), 1);
+        t.feed_bytes(b"hi");
+        assert_eq!(t.buffer.visible_rows()[0][0].ch, 'h');
     }
 
     #[test]

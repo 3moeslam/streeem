@@ -1,11 +1,11 @@
 //! Read-only snapshot consumed by the presentation layer.
 
 #![cfg_attr(test, allow(clippy::unwrap_used))]
-#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_truncation, clippy::type_complexity)]
 
 use streeem_domain::layout_packer::{LayoutInput, Placement, pack};
-use streeem_domain::output_line::OutputLine;
 use streeem_domain::state::State;
+use streeem_domain::terminal_buffer::Cell;
 use streeem_domain::tile::RunStatus;
 use streeem_domain::tile_color::TileColor;
 use streeem_domain::tile_id::TileId;
@@ -20,7 +20,8 @@ pub struct TileSnapshot {
     pub run_status: RunStatus,
     pub follow_tail: bool,
     pub scroll_offset_from_bottom: u32,
-    pub lines: Vec<OutputLine>,
+    pub cells: Vec<Vec<Cell>>,
+    pub cursor: (u16, u16),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,7 +91,8 @@ pub fn snapshot(state: &State) -> RenderSnapshot {
                 run_status: t.run_status,
                 follow_tail: t.follow_tail,
                 scroll_offset_from_bottom: t.scroll_offset_from_bottom,
-                lines: t.scrollback.iter().cloned().collect(),
+                cells: t.buffer.visible_rows().to_vec(),
+                cursor: t.buffer.cursor(),
             }
         })
         .collect();

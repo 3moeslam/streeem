@@ -7,7 +7,6 @@ use ratatui::style::{Color, Modifier, Style as RStyle};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
-use streeem_domain::output_line::OutputLine;
 use streeem_domain::ports::renderer::{RenderError, Renderer};
 use streeem_domain::style::Style as DStyle;
 use streeem_domain::tile_color::TileColor;
@@ -117,24 +116,19 @@ fn draw_tile(area: Rect, f: &mut ratatui::Frame<'_>, t: &TileWidget, alert_heigh
         .border_type(border_type)
         .border_style(border_style)
         .title(Span::styled(title_text, title_style));
-    let lines: Vec<Line<'_>> = t.body.iter().map(translate_line).collect();
+    let lines: Vec<Line<'_>> = t
+        .cells
+        .iter()
+        .map(|row| {
+            let spans: Vec<Span<'_>> = row
+                .iter()
+                .map(|cell| Span::styled(cell.ch.to_string(), translate_style(&cell.style)))
+                .collect();
+            Line::from(spans)
+        })
+        .collect();
     let p = Paragraph::new(lines).block(block);
     f.render_widget(p, r);
-}
-
-fn translate_line(line: &OutputLine) -> Line<'static> {
-    match line {
-        OutputLine::Text(spans) => Line::from(
-            spans
-                .iter()
-                .map(|s| Span::styled(s.text.clone(), translate_style(&s.style)))
-                .collect::<Vec<_>>(),
-        ),
-        OutputLine::LinesDropped(n) => Line::from(Span::styled(
-            format!("[dropped {n} lines]"),
-            RStyle::default().add_modifier(Modifier::DIM),
-        )),
-    }
 }
 
 fn translate_style(s: &DStyle) -> RStyle {

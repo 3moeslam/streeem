@@ -3,7 +3,6 @@
 use crate::command_spec::CommandSpec;
 use crate::exit_status::ExitStatus;
 use crate::grid::FocusMove;
-use crate::output_line::OutputLine;
 use crate::tile_id::TileId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,7 +11,7 @@ pub enum DomainEvent {
     TileSpawnFailed { spec: CommandSpec, reason: String },
     TileMarkedRunning(TileId),
     TileExited { id: TileId, status: ExitStatus },
-    OutputAppended { id: TileId, lines: Vec<OutputLine> },
+    BytesReceived { id: TileId, bytes: Vec<u8> },
     TileDropped(TileId),
     TileResized { id: TileId, delta_rows: i16 },
     FocusMoved(FocusMove),
