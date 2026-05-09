@@ -18,14 +18,9 @@ install-path = "CARGO_HOME"
 hosting = "github"
 # Whether to install an updater program
 install-updater = false
-# The Homebrew formula is published into the main streeem repo itself
-# (Formula/streeem.rb). This is intentionally non-conventional — the canonical
-# `brew tap` requires a separate homebrew-* repo. Users install via direct URL:
-#   brew install https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
-tap = "3moeslam/streeem"
+# The Homebrew formula is published to a separate tap repo following the
+# Homebrew convention (homebrew-* repo name). Users install with:
+#   brew tap 3moeslam/streeem
+#   brew install streeem
+tap = "3moeslam/homebrew-streeem"
 publish-jobs = ["homebrew"]
-# release.yml has a manual `ref: master` patch on the publish-homebrew-formula
-# checkout step (needed because actions/checkout would otherwise default to the
-# tag's detached-HEAD SHA when tap == source repo). Tell dist not to enforce
-# its self-check on the workflow file.
-allow-dirty = ["ci"]

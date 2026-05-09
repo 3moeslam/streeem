@@ -4,15 +4,13 @@ Streeem is a Rust TUI that hosts multiple terminals in a staggered grid. It runs
 
 ---
 
-## 1. macOS — Homebrew, formula downloaded then installed locally
+## 1. macOS — Homebrew tap
 
-The formula lives in the [main streeem repo](https://github.com/3moeslam/streeem) at `Formula/streeem.rb` (auto-published by the release workflow). `brew install` doesn't accept a remote URL directly, so download the file first:
+The formula is auto-published to [`3moeslam/homebrew-streeem`](https://github.com/3moeslam/homebrew-streeem) on every release. Install:
 
 ```sh
-curl -fsSL -o /tmp/streeem.rb \
-  https://raw.githubusercontent.com/3moeslam/streeem/master/Formula/streeem.rb
-brew install --formula /tmp/streeem.rb
-rm /tmp/streeem.rb
+brew tap 3moeslam/streeem
+brew install streeem
 ```
 
 After install:
@@ -22,15 +20,18 @@ streeem --version
 streeem --name shell "${SHELL:-bash} -i"
 ```
 
-To upgrade later, repeat the same three commands. The formula on master always points at the latest tagged release, so the second `brew install` will pick up the new version. (`brew upgrade streeem` won't work — that's reserved for taps; this isn't a tap.)
+To upgrade:
+
+```sh
+brew upgrade streeem
+```
 
 To uninstall:
 
 ```sh
 brew uninstall streeem
+brew untap 3moeslam/streeem
 ```
-
-> Note: the formula is in the main `streeem` repo rather than a separate `homebrew-streeem` tap (which Homebrew's convention requires). One-repo simplicity at the cost of `brew tap`/`brew upgrade`. If you'd rather have the tap experience, switch to the conventional setup; see git history for the previous `dist-workspace.toml` config.
 
 ---
 
