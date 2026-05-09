@@ -58,7 +58,7 @@ pub async fn run(
     let mut tick = interval(Duration::from_millis(33));
     let mut prompt = PromptState::default();
 
-    loop {
+    'outer: loop {
         tokio::select! {
             Some(command) = cmd_rx.recv() => {
                 let outbox = app.dispatch(command);
@@ -91,7 +91,7 @@ pub async fn run(
                                 }
                             } else {
                                 match map_key(key, &app.snapshot()) {
-                                    KeyOutcome::Intent(AppIntent::Quit) => break,
+                                    KeyOutcome::Intent(AppIntent::Quit) => break 'outer,
                                     KeyOutcome::Intent(AppIntent::PromptAddTile) => prompt.open(),
                                     KeyOutcome::Intent(AppIntent::EnterInputMode) => {
                                         mode = Mode::Input;
@@ -142,7 +142,6 @@ pub async fn run(
             }
         }
     }
-    #[allow(unreachable_code)]
     Ok(())
 }
 
