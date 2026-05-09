@@ -36,14 +36,13 @@ multiplexer.
 
 ## 3. Non-Goals (v1)
 
+> **Updated 2026-05-09 for v0.2.0:** the non-goals around interactive shells
+> and full terminal emulation have been retired. See "v0.2.0 changes" appendix
+> at the end.
+
 The following are explicitly **out of scope** for v1 and must not be designed
 into the v1 architecture in ways that constrain future work:
 
-- **Interactive shells.** Tiles are read-only. Keystrokes never reach the
-  hosted process.
-- **Full terminal emulation.** Cursor movement, alternate screen, scroll
-  regions, ncurses apps (`top`, `htop`, `vim`) are not supported inside a
-  tile.
 - **Persistence.** No saved sessions, no replay across runs, no on-disk
   scrollback.
 - **Auto-restart of exited processes.** When a process exits, its tile is
@@ -104,6 +103,8 @@ Default keybindings:
 |---|---|
 | `a` | Open prompt to add a new tile (command + optional rows hint) |
 | `d` | Drop the focused tile (and abort its child); no-op if no tile is focused |
+| `i` | Enter input mode (focused tile becomes input target) |
+| `Esc` | (in input mode) Exit input mode back to command mode |
 | `+` | Grow focused tile by 1 row (re-pack column) |
 | `-` | Shrink focused tile by 1 row (re-pack column) |
 | `→` `←` `↑` `↓` | Move focus spatially within the grid |
@@ -486,6 +487,30 @@ The v1 spec is satisfied when **all** of the following hold:
 - [ ] `cargo fmt --all -- --check` is clean.
 - [ ] No file in the workspace uses a mocking framework. All test doubles are
       hand-written.
+
+## 13a. v0.2.0 Changes
+
+v0.2.0 elevates two prior non-goals into supported features:
+
+- **Real terminal emulation per tile.** Tiles store a `TerminalBuffer`
+  (2D cell grid, cursor position, scroll region, styled cells) backed
+  by the `vte` VT100 parser. Apps that use cursor positioning (vim,
+  htop, less, claude code) render correctly inside their tile.
+- **Interactive input.** Press `i` to enter input mode; the focused
+  tile becomes the input target and typed keys are written to its
+  PTY stdin. `Esc` exits input mode back to command mode. Arrow keys,
+  Enter, Backspace, and Ctrl-letter combinations are translated to
+  standard terminal byte sequences (CSI, ^A..^Z, \r, \x7f).
+- **Visible cursor** in the focused tile, via ratatui's
+  `set_cursor_position`.
+
+These changes superseded the v1 "read-only tiles" model. The
+`AnsiInterpreter`, `Scrollback`, `OutputLine`, `StyledSpan` modules
+were removed. New domain dependency: `vte = "0.15"` (pure parser).
+
+Status bar in input mode reads `[INPUT — <tile-name>]   Esc:exit input mode`.
+Status bar in command mode reads:
+`a:add  d:drop  i:input  +/-:resize  Tab:cycle  1-9:focus  ←→↑↓:move  q:quit`.
 
 ## 14. Future Scope (deliberately out of v1)
 

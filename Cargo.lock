@@ -687,14 +687,14 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "streeem-application"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "streeem-domain",
 ]
 
 [[package]]
 name = "streeem-bin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -708,14 +708,14 @@ dependencies = [
 
 [[package]]
 name = "streeem-domain"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "vte",
 ]
 
 [[package]]
 name = "streeem-infrastructure"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crossterm",
  "portable-pty",
@@ -726,7 +726,7 @@ dependencies = [
 
 [[package]]
 name = "streeem-presentation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "streeem-application",
  "streeem-domain",

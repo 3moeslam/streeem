@@ -8,8 +8,9 @@ workspace behaves like a "desktop of terminals" inside a single terminal window.
 
 - Language: Rust, edition 2024
 - Layout: **Cargo workspace, one crate per Clean Architecture layer**.
-- Dependencies: none yet. Add only what is necessary; justify each addition in
-  the commit/PR message.
+- Dependencies: Add only what is necessary; justify each addition in the
+  commit/PR message. Current domain-layer dependency: `vte = "0.15"` (pure
+  VT100 parser, no I/O — preserves the inward-only architecture rule).
 
 ## Architecture: Clean Architecture + DDD
 
