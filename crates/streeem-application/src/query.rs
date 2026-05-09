@@ -51,8 +51,16 @@ pub fn snapshot(state: &State) -> RenderSnapshot {
         .map(|t| (t.id, t.rows_hint))
         .collect();
     let usable_height = state.grid.terminal_height.saturating_sub(1);
-    let configured_cols = state.grid.columns.value();
-    let effective_cols_value = configured_cols.min(tiles_for_packing.len() as u16).max(1);
+    let tile_count = tiles_for_packing.len() as u16;
+    // When no explicit --columns override is set, default to one column per tile so all tiles
+    // are placed side-by-side regardless of terminal width. The `min_tile_width` field remains
+    // a soft preference used at startup (before tiles exist) but auto-spread takes precedence
+    // once tiles are present. When an override is set, honour it and cap at tile count.
+    let effective_cols_value = if state.columns_override.is_some() {
+        state.grid.columns.value().min(tile_count).max(1)
+    } else {
+        tile_count.max(1)
+    };
     let effective_columns = streeem_domain::column_count::ColumnCount::new(effective_cols_value)
         .unwrap_or(state.grid.columns);
     let placements = if too_small || tiles_for_packing.is_empty() {
@@ -152,6 +160,29 @@ mod tests {
             snap.placements[0].width, 200,
             "1 tile should get full terminal width"
         );
+    }
+
+    #[test]
+    fn auto_columns_default_to_tile_count_when_no_override() {
+        // 2 tiles, narrow terminal (40 wide) — should still place side-by-side in 2 cols.
+        let mut s = State::new(ColumnCount::new(1).unwrap(), 40, 30);
+        let _ = handle_add_tile(&mut s, CommandSpec::with_default_rows("a").unwrap());
+        let _ = handle_add_tile(&mut s, CommandSpec::with_default_rows("b").unwrap());
+        let snap = snapshot(&s);
+        assert_eq!(snap.placements.len(), 2);
+        assert_eq!(snap.placements[0].column, 0);
+        assert_eq!(snap.placements[1].column, 1);
+    }
+
+    #[test]
+    fn override_columns_respected_and_capped_at_tile_count() {
+        // 1 tile but --columns 4 — should still get 1 col (capped) full width.
+        let mut s = State::with_layout_config(ColumnCount::new(4).unwrap(), 200, 30, Some(4), 40);
+        let _ = handle_add_tile(&mut s, CommandSpec::with_default_rows("a").unwrap());
+        let snap = snapshot(&s);
+        assert_eq!(snap.placements.len(), 1);
+        assert_eq!(snap.placements[0].column, 0);
+        assert_eq!(snap.placements[0].width, 200);
     }
 
     #[test]

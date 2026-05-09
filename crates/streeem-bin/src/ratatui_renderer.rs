@@ -5,7 +5,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style as RStyle};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use streeem_domain::output_line::OutputLine;
 use streeem_domain::ports::renderer::{RenderError, Renderer};
@@ -100,16 +100,23 @@ fn draw_tile(area: Rect, f: &mut ratatui::Frame<'_>, t: &TileWidget, alert_heigh
         width: t.placement.width,
         height: t.placement.height,
     };
-    let border_style = RStyle::default().fg(translate_color(t.border_color));
-    let title_style = if t.focused {
-        border_style.add_modifier(Modifier::BOLD)
+    let border_color = translate_color(t.border_color);
+    let border_style = RStyle::default().fg(border_color);
+    let (border_type, title_prefix, title_style) = if t.focused {
+        (
+            BorderType::Double,
+            "▶ ",
+            border_style.add_modifier(Modifier::BOLD),
+        )
     } else {
-        border_style
+        (BorderType::Plain, "", border_style)
     };
+    let title_text = format!("{}{}", title_prefix, t.title);
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(border_type)
         .border_style(border_style)
-        .title(Span::styled(t.title.clone(), title_style));
+        .title(Span::styled(title_text, title_style));
     let lines: Vec<Line<'_>> = t.body.iter().map(translate_line).collect();
     let p = Paragraph::new(lines).block(block);
     f.render_widget(p, r);
