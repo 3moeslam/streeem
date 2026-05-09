@@ -23,13 +23,13 @@ pub enum KeyOutcome {
     Forward,
 }
 
-pub const STATUS_BAR_TEXT: &str = "^A:add  ^X:drop  ^N/^P:next/prev  ^F:follow-tail  ^T/^B:scroll  ^Q:quit  (other keys \u{2192} focused tile)";
+pub const STATUS_BAR_TEXT: &str = "^A:add  ^X:drop  ^N/^P:next/prev  ^F:follow-tail  ^T:scroll-top  ^Q:quit  (other keys \u{2192} focused tile)";
 
 pub const STATUS_BAR_TEXT_FORWARDING: &str =
-    "type to focused tile  \u{2022}  Esc Esc:command mode  \u{2022}  Ctrl+Q:quit";
+    "type to focused tile  \u{2022}  Ctrl+B:command mode  \u{2022}  Ctrl+Q:quit";
 
 pub const STATUS_BAR_TEXT_COMMAND: &str =
-    "[CMD] a:new shell  x:drop  n:next  p:prev  f:follow  q:quit  Esc:exit";
+    "[CMD] a:new shell  x:drop  n:next  p:prev  f:follow  b:brave  q:quit  Esc:exit";
 
 pub fn map(key: KeyEvent, snap: &RenderSnapshot) -> KeyOutcome {
     use KeyCode::Char;
@@ -62,14 +62,8 @@ pub fn map(key: KeyEvent, snap: &RenderSnapshot) -> KeyOutcome {
                 })
             })
             .unwrap_or(KeyOutcome::Forward),
-        'b' => focused
-            .map(|id| {
-                KeyOutcome::Command(Command::ScrollTile {
-                    id,
-                    delta: ScrollDelta::Bottom,
-                })
-            })
-            .unwrap_or(KeyOutcome::Forward),
+        // 'b' is now the command-mode trigger (Ctrl+B); handled in the runtime before
+        // map_key is reached. Fall through to Forward so it is never consumed here.
         // Ctrl+C, Ctrl+D, Ctrl+I, Ctrl+M, Ctrl+L, Ctrl+R, Ctrl+S, Ctrl+U,
         // Ctrl+W, Ctrl+Z, etc. — fall through to the tile.
         _ => KeyOutcome::Forward,
@@ -182,6 +176,13 @@ mod tests {
             map(KeyEvent::plain(KeyCode::Tab), &snap(None)),
             KeyOutcome::Forward
         );
+    }
+
+    #[test]
+    fn ctrl_b_forwards_because_runtime_handles_it_as_command_mode() {
+        // Ctrl+B is intercepted by the runtime before map() is reached; map()
+        // must forward it so it does not accidentally scroll or dispatch.
+        assert_eq!(map(ctrl('b'), &snap(None)), KeyOutcome::Forward);
     }
 
     #[test]

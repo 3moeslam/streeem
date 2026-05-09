@@ -30,7 +30,6 @@ use tokio::time::interval;
 
 type ResizeCallbacks = HashMap<TileId, Box<dyn FnMut(u16, u16) + Send>>;
 
-const DOUBLE_ESC_WINDOW: Duration = Duration::from_millis(500);
 const COMMAND_MODE_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub async fn run(
@@ -68,9 +67,8 @@ pub async fn run(
     let mut tick = interval(Duration::from_millis(33));
     let mut prompt = PromptState::default();
 
-    // Double-Esc command mode state.
-    let mut last_esc_at: Option<std::time::Instant> = None;
     let mut command_mode_until: Option<std::time::Instant> = None;
+    let mut brave_last_hash: HashMap<TileId, u64> = HashMap::new();
 
     'outer: loop {
         tokio::select! {
@@ -102,7 +100,6 @@ pub async fn run(
                             // Esc exits command mode.
                             debug_log::log("cmd-mode: exit (Esc)");
                             command_mode_until = None;
-                            last_esc_at = None;
                             continue;
                         }
 
@@ -152,6 +149,15 @@ pub async fn run(
                                     }
                                     command_mode_until = None;
                                 }
+                                'b' => {
+                                    debug_log::log("cmd-mode: toggle brave mode");
+                                    if let Some(id) = app.snapshot().focused {
+                                        let outbox =
+                                            app.dispatch(Command::ToggleBraveMode(id));
+                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                    }
+                                    command_mode_until = None;
+                                }
                                 _ => {
                                     // Unknown command-mode key; exit command mode.
                                     debug_log::log(&format!(
@@ -168,23 +174,11 @@ pub async fn run(
                         continue;
                     }
 
-                    // Not in command mode. Handle Esc specially for double-Esc detection.
-                    if key.code == KeyCode::Esc {
-                        if let Some(prev) = last_esc_at
-                            && now.duration_since(prev) < DOUBLE_ESC_WINDOW
-                        {
-                            // Second Esc within the window — enter command mode.
-                            // The first Esc was already forwarded; that's fine.
-                            debug_log::log("double-Esc: entering command mode");
-                            command_mode_until = Some(now + COMMAND_MODE_TIMEOUT);
-                            last_esc_at = None;
-                            continue;
-                        }
-                        last_esc_at = Some(now);
-                        // Fall through to forward this Esc to the tile.
-                    } else {
-                        // Non-Esc key resets the esc timer.
-                        last_esc_at = None;
+                    // Not in command mode. Ctrl+B enters command mode; Esc always forwards.
+                    if key.code == KeyCode::Char('b') && key.modifiers.ctrl {
+                        debug_log::log("Ctrl+B: entering command mode");
+                        command_mode_until = Some(now + COMMAND_MODE_TIMEOUT);
+                        continue;
                     }
 
                     // Try the legacy Ctrl+Q / Ctrl+A keymap for backward compat.
@@ -290,6 +284,30 @@ pub async fn run(
                         *status_bar = bar.to_string();
                     }
                     renderer.render(&frame).map_err(|e| anyhow::anyhow!("render: {}", e.0))?;
+                }
+
+                // Brave-mode: auto-respond to Claude permission prompts on tiles with brave on.
+                {
+                    let snap = app.snapshot();
+                    // Prune hashes for tiles that no longer exist.
+                    brave_last_hash.retain(|id, _| snap.tiles.iter().any(|t| t.id == *id));
+                    for tile_snap in &snap.tiles {
+                        if !tile_snap.brave_mode {
+                            continue;
+                        }
+                        let last = brave_last_hash.get(&tile_snap.id).copied();
+                        if let Some(resp) = crate::brave_mode::detect(&tile_snap.cells, last)
+                            && let Some(writer) = writers.get_mut(&tile_snap.id)
+                        {
+                            let _ = writer.write_all(&resp.bytes);
+                            let _ = writer.flush();
+                            brave_last_hash.insert(tile_snap.id, resp.prompt_hash);
+                            debug_log::log(&format!(
+                                "brave: tile={:?} responded with {} bytes (hash={:x})",
+                                tile_snap.id, resp.bytes.len(), resp.prompt_hash
+                            ));
+                        }
+                    }
                 }
             }
         }

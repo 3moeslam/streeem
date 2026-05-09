@@ -1,3 +1,4 @@
+mod brave_mode;
 mod cli;
 mod debug_log;
 mod input_bytes;

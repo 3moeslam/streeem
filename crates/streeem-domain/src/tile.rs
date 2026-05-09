@@ -27,6 +27,7 @@ pub struct Tile {
     pub follow_tail: bool,
     pub scroll_offset_from_bottom: u32,
     pub name: Option<String>,
+    pub brave_mode: bool,
 }
 
 impl Tile {
@@ -48,6 +49,7 @@ impl Tile {
             follow_tail: true,
             scroll_offset_from_bottom: 0,
             name,
+            brave_mode: false,
         }
     }
 
@@ -69,6 +71,10 @@ impl Tile {
 
     pub fn resize_buffer(&mut self, width: u16, height: u16) {
         self.buffer.resize(width, height);
+    }
+
+    pub fn toggle_brave_mode(&mut self) {
+        self.brave_mode = !self.brave_mode;
     }
 }
 

@@ -25,6 +25,7 @@ pub enum Command {
     OnPtySpawned(TileId),
     OnPtySpawnFailed { spec: CommandSpec, reason: String },
     OnPtyExited { id: TileId, status: ExitStatus },
+    ToggleBraveMode(TileId),
     OnTerminalResized { width: u16, height: u16 },
     ResizeTileBuffer { id: TileId, width: u16, height: u16 },
 }

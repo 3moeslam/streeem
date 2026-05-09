@@ -34,6 +34,10 @@ pub fn handle_follow_tail(state: &mut State, id: TileId) -> Vec<OutboxEffect> {
     reduce(state, DomainEvent::FollowTailToggled(id))
 }
 
+pub fn handle_toggle_brave(state: &mut State, id: TileId) -> Vec<OutboxEffect> {
+    reduce(state, DomainEvent::BraveModeToggled(id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +96,17 @@ mod tests {
         let before = s.grid.tiles[0].follow_tail;
         let _ = handle_follow_tail(&mut s, id);
         assert_ne!(before, s.grid.tiles[0].follow_tail);
+    }
+
+    #[test]
+    fn brave_mode_toggle_flips_flag() {
+        let mut s = fresh();
+        let _ = handle_add_tile(&mut s, CommandSpec::with_default_rows("a").unwrap());
+        let id = s.grid.tiles[0].id;
+        assert!(!s.grid.tiles[0].brave_mode);
+        let _ = handle_toggle_brave(&mut s, id);
+        assert!(s.grid.tiles[0].brave_mode);
+        let _ = handle_toggle_brave(&mut s, id);
+        assert!(!s.grid.tiles[0].brave_mode);
     }
 }

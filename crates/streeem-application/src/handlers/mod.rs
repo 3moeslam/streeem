@@ -15,6 +15,7 @@ pub fn handle(state: &mut State, command: Command) -> Vec<OutboxEffect> {
         Command::ScrollTile { id, delta } => interaction::handle_scroll(state, id, delta),
         Command::MoveFocus(m) => interaction::handle_focus(state, m),
         Command::ToggleFollowTail(id) => interaction::handle_follow_tail(state, id),
+        Command::ToggleBraveMode(id) => interaction::handle_toggle_brave(state, id),
         Command::OnPtyBytes { id, bytes } => pty::handle_bytes(state, id, bytes),
         Command::OnPtySpawned(id) => pty::handle_spawned(state, id),
         Command::OnPtySpawnFailed { spec, reason } => {

@@ -22,6 +22,7 @@ pub struct TileSnapshot {
     pub scroll_offset_from_bottom: u32,
     pub cells: Vec<Vec<Cell>>,
     pub cursor: (u16, u16),
+    pub brave_mode: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +94,7 @@ pub fn snapshot(state: &State) -> RenderSnapshot {
                 scroll_offset_from_bottom: t.scroll_offset_from_bottom,
                 cells: t.buffer.visible_rows(),
                 cursor: t.buffer.cursor(),
+                brave_mode: t.brave_mode,
             }
         })
         .collect();

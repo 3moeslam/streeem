@@ -106,6 +106,12 @@ pub fn reduce(state: &mut State, event: DomainEvent) -> Vec<OutboxEffect> {
                 state.dirty = true;
             }
         }
+        DomainEvent::BraveModeToggled(id) => {
+            if let Some(tile) = state.grid.tiles.iter_mut().find(|t| t.id == id) {
+                tile.toggle_brave_mode();
+                state.dirty = true;
+            }
+        }
         DomainEvent::TerminalResized { width, height } => {
             state.grid.terminal_width = width;
             state.grid.terminal_height = height;
@@ -329,6 +335,27 @@ mod tests {
             !out.iter()
                 .any(|e| matches!(e, OutboxEffect::ResizePty { .. }))
         );
+    }
+
+    #[test]
+    fn brave_mode_toggled_flips_flag() {
+        let mut state = fresh_state();
+        let id = state.id_factory.next_id();
+        let _ = reduce(
+            &mut state,
+            DomainEvent::TileAdded {
+                id,
+                spec: spec("a"),
+            },
+        );
+        let tile = state.grid.tiles.iter().find(|t| t.id == id).unwrap();
+        assert!(!tile.brave_mode);
+        let _ = reduce(&mut state, DomainEvent::BraveModeToggled(id));
+        let tile = state.grid.tiles.iter().find(|t| t.id == id).unwrap();
+        assert!(tile.brave_mode);
+        let _ = reduce(&mut state, DomainEvent::BraveModeToggled(id));
+        let tile = state.grid.tiles.iter().find(|t| t.id == id).unwrap();
+        assert!(!tile.brave_mode);
     }
 
     #[test]

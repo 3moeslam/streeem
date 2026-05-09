@@ -87,12 +87,17 @@ fn build_tile_widget(snap: &RenderSnapshot, tile: &TileSnapshot) -> TileWidget {
             is_clipped: false,
         });
     let row_count = tile.cells.len();
-    let status_badges = match (tile.follow_tail, placement.is_clipped, tile.run_status) {
-        (false, _, _) => " [paused]".to_string(),
-        (_, true, _) => " [clipped]".to_string(),
-        (_, _, RunStatus::Spawning) => " [spawning]".to_string(),
-        _ => String::new(),
-    };
+    let brave_badge = if tile.brave_mode { " [BRAVE]" } else { "" };
+    let status_badges = format!(
+        "{}{}",
+        match (tile.follow_tail, placement.is_clipped, tile.run_status) {
+            (false, _, _) => " [paused]",
+            (_, true, _) => " [clipped]",
+            (_, _, RunStatus::Spawning) => " [spawning]",
+            _ => "",
+        },
+        brave_badge
+    );
     let is_auto_name = tile.display_name == format!("{}", tile.focus_index);
     let title = if is_auto_name {
         format!(
@@ -169,6 +174,7 @@ mod tests {
             scroll_offset_from_bottom: 0,
             cells: cells_with("hello", 80),
             cursor: (0, 5),
+            brave_mode: false,
         };
         RenderSnapshot {
             terminal_size: if too_small { (20, 5) } else { (80, 30) },
@@ -275,6 +281,7 @@ mod tests {
             scroll_offset_from_bottom: 0,
             cells: Vec::new(),
             cursor: (0, 0),
+            brave_mode: false,
         };
         RenderSnapshot {
             terminal_size: (80, 30),
