@@ -2,6 +2,7 @@ mod brave_mode;
 mod cli;
 mod debug_log;
 mod input_bytes;
+mod mouse_bytes;
 mod ratatui_renderer;
 mod runtime;
 

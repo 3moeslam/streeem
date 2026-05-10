@@ -12,7 +12,7 @@ use streeem_domain::column_count::ColumnCount;
 use streeem_domain::command_spec::CommandSpec;
 use streeem_domain::grid::FocusMove;
 use streeem_domain::outbox::OutboxEffect;
-use streeem_domain::ports::input_source::{InputSource, KeyCode};
+use streeem_domain::ports::input_source::{InputEvent, InputSource, KeyCode, MouseEventKind};
 use streeem_domain::ports::pty_spawner::PtySpawner;
 use streeem_domain::ports::renderer::Renderer;
 use streeem_domain::ports::terminal_size::TerminalSize;
@@ -78,39 +78,164 @@ pub async fn run(
                 process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
             }
             _ = tick.tick() => {
-                while let Some(key) = input.poll_event() {
-                    if prompt.active {
-                        match prompt.handle(key) {
-                            PromptOutcome::Submitted(cmd) => {
-                                let outbox = app.dispatch(cmd);
-                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                while let Some(ev) = input.poll_event() {
+                    match ev {
+                        InputEvent::Mouse(m) => {
+                            // Forward mouse events directly to the focused tile's PTY,
+                            // skipping command mode and prompt handling.
+                            if matches!(m.kind, MouseEventKind::Moved) {
+                                // Moved floods the PTY; skip.
+                                continue;
                             }
-                            PromptOutcome::InvalidSubmission(_)
-                            | PromptOutcome::Cancelled
-                            | PromptOutcome::Continue => {}
+                            if let Some(bytes) = crate::mouse_bytes::mouse_to_bytes(m) {
+                                let focused = app.snapshot().focused;
+                                debug_log::log(&format!(
+                                    "forward: mouse={:?} focused={:?}",
+                                    m.kind, focused
+                                ));
+                                if let Some(focused_id) = focused
+                                    && let Some(writer) = writers.get_mut(&focused_id)
+                                {
+                                    if let Err(e) = writer.write_all(&bytes) {
+                                        debug_log::log(&format!(
+                                            "forward: mouse write FAILED: {e}"
+                                        ));
+                                    }
+                                    if let Err(e) = writer.flush() {
+                                        debug_log::log(&format!(
+                                            "forward: mouse flush FAILED: {e}"
+                                        ));
+                                    }
+                                }
+                            }
                         }
-                        continue;
-                    }
+                        InputEvent::Key(key) => {
+                            if prompt.active {
+                                match prompt.handle(key) {
+                                    PromptOutcome::Submitted(cmd) => {
+                                        let outbox = app.dispatch(cmd);
+                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                    }
+                                    PromptOutcome::InvalidSubmission(_)
+                                    | PromptOutcome::Cancelled
+                                    | PromptOutcome::Continue => {}
+                                }
+                                continue;
+                            }
 
-                    let now = std::time::Instant::now();
-                    let in_command_mode =
-                        command_mode_until.is_some_and(|t| now < t);
+                            let now = std::time::Instant::now();
+                            let in_command_mode =
+                                command_mode_until.is_some_and(|t| now < t);
 
-                    if in_command_mode {
-                        if key.code == KeyCode::Esc {
-                            // Esc exits command mode.
-                            debug_log::log("cmd-mode: exit (Esc)");
-                            command_mode_until = None;
-                            continue;
-                        }
+                            if in_command_mode {
+                                if key.code == KeyCode::Esc {
+                                    // Esc exits command mode.
+                                    debug_log::log("cmd-mode: exit (Esc)");
+                                    command_mode_until = None;
+                                    continue;
+                                }
 
-                        if let KeyCode::Char(c) = key.code {
-                            match c.to_ascii_lowercase() {
-                                'q' => {
-                                    debug_log::log("cmd-mode: quit");
+                                if let KeyCode::Char(c) = key.code {
+                                    match c.to_ascii_lowercase() {
+                                        'q' => {
+                                            debug_log::log("cmd-mode: quit");
+                                            break 'outer;
+                                        }
+                                        'a' => {
+                                            debug_log::log(&format!(
+                                                "command-mode 'a' -> spawn default shell: {}",
+                                                default_shell_command
+                                            ));
+                                            if let Ok(spec) = CommandSpec::with_default_rows(default_shell_command.clone()) {
+                                                let outbox = app.dispatch(Command::AddTile(spec));
+                                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                            }
+                                            command_mode_until = None;
+                                        }
+                                        'x' => {
+                                            debug_log::log("cmd-mode: drop tile");
+                                            if let Some(id) = app.snapshot().focused {
+                                                let outbox = app.dispatch(Command::DropTile(id));
+                                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                            }
+                                            command_mode_until = None;
+                                        }
+                                        'n' => {
+                                            debug_log::log("cmd-mode: next tile");
+                                            let outbox = app.dispatch(Command::MoveFocus(FocusMove::CycleForward));
+                                            process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                            command_mode_until = None;
+                                        }
+                                        'p' => {
+                                            debug_log::log("cmd-mode: prev tile");
+                                            let outbox = app.dispatch(Command::MoveFocus(FocusMove::CycleBackward));
+                                            process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                            command_mode_until = None;
+                                        }
+                                        'f' => {
+                                            debug_log::log("cmd-mode: toggle follow-tail");
+                                            if let Some(id) = app.snapshot().focused {
+                                                let outbox =
+                                                    app.dispatch(Command::ToggleFollowTail(id));
+                                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                            }
+                                            command_mode_until = None;
+                                        }
+                                        'r' => {
+                                            debug_log::log("cmd-mode: rename tile");
+                                            if let Some(id) = app.snapshot().focused {
+                                                prompt.open_for_rename(id);
+                                            }
+                                            command_mode_until = None;
+                                        }
+                                        'k' => {
+                                            debug_log::log("cmd-mode: drop tile by number");
+                                            let tiles_in_order: Vec<_> =
+                                                app.snapshot().tiles.iter().map(|t| t.id).collect();
+                                            if !tiles_in_order.is_empty() {
+                                                prompt.open_for_drop(tiles_in_order);
+                                            }
+                                            command_mode_until = None;
+                                        }
+                                        'b' => {
+                                            debug_log::log("cmd-mode: toggle brave mode");
+                                            if let Some(id) = app.snapshot().focused {
+                                                let outbox =
+                                                    app.dispatch(Command::ToggleBraveMode(id));
+                                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
+                                            }
+                                            command_mode_until = None;
+                                        }
+                                        _ => {
+                                            // Unknown command-mode key; exit command mode.
+                                            debug_log::log(&format!(
+                                                "cmd-mode: unknown key {:?}, exiting",
+                                                c
+                                            ));
+                                            command_mode_until = None;
+                                        }
+                                    }
+                                } else {
+                                    // Non-char key in command mode — exit command mode.
+                                    command_mode_until = None;
+                                }
+                                continue;
+                            }
+
+                            // Not in command mode. Ctrl+B enters command mode; Esc always forwards.
+                            if key.code == KeyCode::Char('b') && key.modifiers.ctrl {
+                                debug_log::log("Ctrl+B: entering command mode");
+                                command_mode_until = Some(now + COMMAND_MODE_TIMEOUT);
+                                continue;
+                            }
+
+                            // Try the legacy Ctrl+Q / Ctrl+A keymap for backward compat.
+                            match map_key(key, &app.snapshot()) {
+                                KeyOutcome::Intent(AppIntent::Quit) => {
+                                    debug_log::log("command: ^Q");
                                     break 'outer;
                                 }
-                                'a' => {
+                                KeyOutcome::Intent(AppIntent::PromptAddTile) => {
                                     debug_log::log(&format!(
                                         "command-mode 'a' -> spawn default shell: {}",
                                         default_shell_command
@@ -119,121 +244,29 @@ pub async fn run(
                                         let outbox = app.dispatch(Command::AddTile(spec));
                                         process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
                                     }
-                                    command_mode_until = None;
                                 }
-                                'x' => {
-                                    debug_log::log("cmd-mode: drop tile");
-                                    if let Some(id) = app.snapshot().focused {
-                                        let outbox = app.dispatch(Command::DropTile(id));
-                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
-                                    }
-                                    command_mode_until = None;
-                                }
-                                'n' => {
-                                    debug_log::log("cmd-mode: next tile");
-                                    let outbox = app.dispatch(Command::MoveFocus(FocusMove::CycleForward));
+                                KeyOutcome::Command(c) => {
+                                    let outbox = app.dispatch(c);
                                     process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
-                                    command_mode_until = None;
                                 }
-                                'p' => {
-                                    debug_log::log("cmd-mode: prev tile");
-                                    let outbox = app.dispatch(Command::MoveFocus(FocusMove::CycleBackward));
-                                    process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
-                                    command_mode_until = None;
-                                }
-                                'f' => {
-                                    debug_log::log("cmd-mode: toggle follow-tail");
-                                    if let Some(id) = app.snapshot().focused {
-                                        let outbox =
-                                            app.dispatch(Command::ToggleFollowTail(id));
-                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
-                                    }
-                                    command_mode_until = None;
-                                }
-                                'r' => {
-                                    debug_log::log("cmd-mode: rename tile");
-                                    if let Some(id) = app.snapshot().focused {
-                                        prompt.open_for_rename(id);
-                                    }
-                                    command_mode_until = None;
-                                }
-                                'k' => {
-                                    debug_log::log("cmd-mode: drop tile by number");
-                                    let tiles_in_order: Vec<_> =
-                                        app.snapshot().tiles.iter().map(|t| t.id).collect();
-                                    if !tiles_in_order.is_empty() {
-                                        prompt.open_for_drop(tiles_in_order);
-                                    }
-                                    command_mode_until = None;
-                                }
-                                'b' => {
-                                    debug_log::log("cmd-mode: toggle brave mode");
-                                    if let Some(id) = app.snapshot().focused {
-                                        let outbox =
-                                            app.dispatch(Command::ToggleBraveMode(id));
-                                        process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
-                                    }
-                                    command_mode_until = None;
-                                }
-                                _ => {
-                                    // Unknown command-mode key; exit command mode.
-                                    debug_log::log(&format!(
-                                        "cmd-mode: unknown key {:?}, exiting",
-                                        c
-                                    ));
-                                    command_mode_until = None;
-                                }
-                            }
-                        } else {
-                            // Non-char key in command mode — exit command mode.
-                            command_mode_until = None;
-                        }
-                        continue;
-                    }
-
-                    // Not in command mode. Ctrl+B enters command mode; Esc always forwards.
-                    if key.code == KeyCode::Char('b') && key.modifiers.ctrl {
-                        debug_log::log("Ctrl+B: entering command mode");
-                        command_mode_until = Some(now + COMMAND_MODE_TIMEOUT);
-                        continue;
-                    }
-
-                    // Try the legacy Ctrl+Q / Ctrl+A keymap for backward compat.
-                    match map_key(key, &app.snapshot()) {
-                        KeyOutcome::Intent(AppIntent::Quit) => {
-                            debug_log::log("command: ^Q");
-                            break 'outer;
-                        }
-                        KeyOutcome::Intent(AppIntent::PromptAddTile) => {
-                            debug_log::log(&format!(
-                                "command-mode 'a' -> spawn default shell: {}",
-                                default_shell_command
-                            ));
-                            if let Ok(spec) = CommandSpec::with_default_rows(default_shell_command.clone()) {
-                                let outbox = app.dispatch(Command::AddTile(spec));
-                                process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
-                            }
-                        }
-                        KeyOutcome::Command(c) => {
-                            let outbox = app.dispatch(c);
-                            process_outbox(&pty, &cmd_tx, &mut readers, &mut writers, &mut resize_callbacks, outbox).await;
-                        }
-                        KeyOutcome::Forward => {
-                            if let Some(bytes) = key_to_bytes(key) {
-                                let focused = app.snapshot().focused;
-                                let has_writer = focused.is_some_and(|id| writers.contains_key(&id));
-                                debug_log::log(&format!(
-                                    "forward: key={:?} bytes={:?} focused={:?} has_writer={}",
-                                    key.code, bytes, focused, has_writer
-                                ));
-                                if let Some(focused_id) = focused
-                                    && let Some(writer) = writers.get_mut(&focused_id)
-                                {
-                                    if let Err(e) = writer.write_all(&bytes) {
-                                        debug_log::log(&format!("forward: write FAILED: {e}"));
-                                    }
-                                    if let Err(e) = writer.flush() {
-                                        debug_log::log(&format!("forward: flush FAILED: {e}"));
+                                KeyOutcome::Forward => {
+                                    if let Some(bytes) = key_to_bytes(key) {
+                                        let focused = app.snapshot().focused;
+                                        let has_writer = focused.is_some_and(|id| writers.contains_key(&id));
+                                        debug_log::log(&format!(
+                                            "forward: key={:?} bytes={:?} focused={:?} has_writer={}",
+                                            key.code, bytes, focused, has_writer
+                                        ));
+                                        if let Some(focused_id) = focused
+                                            && let Some(writer) = writers.get_mut(&focused_id)
+                                        {
+                                            if let Err(e) = writer.write_all(&bytes) {
+                                                debug_log::log(&format!("forward: write FAILED: {e}"));
+                                            }
+                                            if let Err(e) = writer.flush() {
+                                                debug_log::log(&format!("forward: flush FAILED: {e}"));
+                                            }
+                                        }
                                     }
                                 }
                             }

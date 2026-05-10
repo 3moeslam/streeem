@@ -2,7 +2,7 @@
     any(test, feature = "test-support"),
     allow(clippy::expect_used, clippy::unwrap_used)
 )]
-//! User keyboard input, abstracted away from crossterm.
+//! User keyboard and mouse input, abstracted away from crossterm.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyCode {
@@ -44,8 +44,47 @@ impl KeyEvent {
     }
 }
 
+/// Mouse button identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseButton {
+    Left,
+    Middle,
+    Right,
+    /// Any button not natively represented (e.g. button 4+).
+    Other,
+}
+
+/// What the mouse did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseEventKind {
+    Down(MouseButton),
+    Up(MouseButton),
+    Drag(MouseButton),
+    Moved,
+    ScrollDown,
+    ScrollUp,
+    ScrollLeft,
+    ScrollRight,
+}
+
+/// A single mouse event with absolute terminal coordinates (0-based).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MouseEvent {
+    pub kind: MouseEventKind,
+    pub column: u16,
+    pub row: u16,
+    pub modifiers: KeyModifiers,
+}
+
+/// Top-level input event: either a key press or a mouse event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputEvent {
+    Key(KeyEvent),
+    Mouse(MouseEvent),
+}
+
 pub trait InputSource: Send {
-    fn poll_event(&mut self) -> Option<KeyEvent>;
+    fn poll_event(&mut self) -> Option<InputEvent>;
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -55,20 +94,23 @@ pub mod fakes {
 
     #[derive(Debug, Default)]
     pub struct FakeInputSource {
-        queue: VecDeque<KeyEvent>,
+        queue: VecDeque<InputEvent>,
     }
 
     impl FakeInputSource {
         pub fn new() -> Self {
             Self::default()
         }
-        pub fn push(&mut self, event: KeyEvent) {
-            self.queue.push_back(event);
+        pub fn push_key(&mut self, event: KeyEvent) {
+            self.queue.push_back(InputEvent::Key(event));
+        }
+        pub fn push_mouse(&mut self, event: MouseEvent) {
+            self.queue.push_back(InputEvent::Mouse(event));
         }
     }
 
     impl InputSource for FakeInputSource {
-        fn poll_event(&mut self) -> Option<KeyEvent> {
+        fn poll_event(&mut self) -> Option<InputEvent> {
             self.queue.pop_front()
         }
     }
@@ -80,10 +122,16 @@ pub mod fakes {
         #[test]
         fn returns_pushed_events_in_order() {
             let mut s = FakeInputSource::new();
-            s.push(KeyEvent::plain(KeyCode::Char('a')));
-            s.push(KeyEvent::plain(KeyCode::Enter));
-            assert_eq!(s.poll_event().unwrap().code, KeyCode::Char('a'));
-            assert_eq!(s.poll_event().unwrap().code, KeyCode::Enter);
+            s.push_key(KeyEvent::plain(KeyCode::Char('a')));
+            s.push_key(KeyEvent::plain(KeyCode::Enter));
+            assert_eq!(
+                s.poll_event().unwrap(),
+                InputEvent::Key(KeyEvent::plain(KeyCode::Char('a')))
+            );
+            assert_eq!(
+                s.poll_event().unwrap(),
+                InputEvent::Key(KeyEvent::plain(KeyCode::Enter))
+            );
             assert!(s.poll_event().is_none());
         }
     }
