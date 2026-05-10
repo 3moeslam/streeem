@@ -69,6 +69,7 @@ pub async fn run(
 
     let mut command_mode_until: Option<std::time::Instant> = None;
     let mut brave_last_hash: HashMap<TileId, u64> = HashMap::new();
+    let mut brave_noop_dump: HashMap<(TileId, &'static str), u64> = HashMap::new();
 
     'outer: loop {
         tokio::select! {
@@ -312,16 +313,65 @@ pub async fn run(
                             continue;
                         }
                         let last = brave_last_hash.get(&tile_snap.id).copied();
-                        if let Some(resp) = crate::brave_mode::detect(&tile_snap.cells, last)
-                            && let Some(writer) = writers.get_mut(&tile_snap.id)
-                        {
-                            let _ = writer.write_all(&resp.bytes);
-                            let _ = writer.flush();
-                            brave_last_hash.insert(tile_snap.id, resp.prompt_hash);
-                            debug_log::log(&format!(
-                                "brave: tile={:?} responded with {} bytes (hash={:x})",
-                                tile_snap.id, resp.bytes.len(), resp.prompt_hash
-                            ));
+                        match crate::brave_mode::detect(&tile_snap.cells, last) {
+                            Some(resp) => {
+                                if let Some(writer) = writers.get_mut(&tile_snap.id) {
+                                    match writer.write_all(&resp.bytes) {
+                                        Ok(()) => debug_log::log(&format!(
+                                            "brave: tile={:?} sent {} bytes (hash={:x})",
+                                            tile_snap.id, resp.bytes.len(), resp.prompt_hash
+                                        )),
+                                        Err(e) => debug_log::log(&format!(
+                                            "brave: tile={:?} write FAILED: {e}",
+                                            tile_snap.id
+                                        )),
+                                    }
+                                    let _ = writer.flush();
+                                    brave_last_hash.insert(tile_snap.id, resp.prompt_hash);
+                                } else {
+                                    debug_log::log(&format!(
+                                        "brave: tile={:?} HAS prompt but no writer registered",
+                                        tile_snap.id
+                                    ));
+                                }
+                            }
+                            None => {
+                                // Log the bottom 10 lines of the buffer when brave is active
+                                // and we found nothing. Deduped on content hash so it doesn't
+                                // spam — only logs when the buffer content changes.
+                                if !tile_snap.cells.is_empty() {
+                                    let bottom: Vec<String> = tile_snap
+                                        .cells
+                                        .iter()
+                                        .rev()
+                                        .take(10)
+                                        .map(|row| {
+                                            row.iter()
+                                                .map(|c| c.ch)
+                                                .collect::<String>()
+                                                .trim_end()
+                                                .to_string()
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .into_iter()
+                                        .rev()
+                                        .collect();
+                                    let combined = bottom.join("\n");
+                                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                                    use std::hash::{Hash, Hasher};
+                                    combined.hash(&mut h);
+                                    let content_hash = h.finish();
+                                    let key = (tile_snap.id, "brave-noop");
+                                    let prev = brave_noop_dump.get(&key).copied();
+                                    if prev != Some(content_hash) {
+                                        brave_noop_dump.insert(key, content_hash);
+                                        debug_log::log(&format!(
+                                            "brave: tile={:?} no prompt detected; bottom 10 lines:\n{}",
+                                            tile_snap.id, combined
+                                        ));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
