@@ -156,6 +156,15 @@ pub async fn run(
                                     }
                                     command_mode_until = None;
                                 }
+                                'k' => {
+                                    debug_log::log("cmd-mode: drop tile by number");
+                                    let tiles_in_order: Vec<_> =
+                                        app.snapshot().tiles.iter().map(|t| t.id).collect();
+                                    if !tiles_in_order.is_empty() {
+                                        prompt.open_for_drop(tiles_in_order);
+                                    }
+                                    command_mode_until = None;
+                                }
                                 'b' => {
                                     debug_log::log("cmd-mode: toggle brave mode");
                                     if let Some(id) = app.snapshot().focused {

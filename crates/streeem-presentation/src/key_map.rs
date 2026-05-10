@@ -28,8 +28,7 @@ pub const STATUS_BAR_TEXT: &str = "^A:add  ^X:drop  ^N/^P:next/prev  ^F:follow-t
 pub const STATUS_BAR_TEXT_FORWARDING: &str =
     "type to focused tile  \u{2022}  Ctrl+B:command mode  \u{2022}  Ctrl+Q:quit";
 
-pub const STATUS_BAR_TEXT_COMMAND: &str =
-    "[CMD] a:new shell  r:rename  x:drop  n:next  p:prev  f:follow  b:brave  q:quit  Esc:exit";
+pub const STATUS_BAR_TEXT_COMMAND: &str = "[CMD] a:new shell  r:rename  x:drop focused  k:drop by #  n:next  p:prev  f:follow  b:brave  q:quit  Esc:exit";
 
 pub fn map(key: KeyEvent, snap: &RenderSnapshot) -> KeyOutcome {
     use KeyCode::Char;
